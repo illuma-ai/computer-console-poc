@@ -15,9 +15,15 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
 - **Agents** (`#/agents`). The agent definitions, from `GET /v1/agents`. "New agent" starts blank;
   "New from template" starts from a template in the catalog. A row opens its agent in a sheet. The sheet holds
   the name, description, instructions, model, runtime, template, egress, timeout, max wait, take-over allowed,
-  pause after idle, resume on answer, allowed channels, setup commands, ready check and the tools. Saving validates first and shows each problem
+  allowed channels, setup commands, ready check, a Recording section (record the screen, frames a second, retention
+  in days, recording required, pause on typed text) and the tools. Saving validates first and shows each problem
   under its field. "Disable agent" turns an enabled agent off. Pause after idle and resume on answer show "Service
   default" until the person sets them, or while the saved agent has no value for them: a write then leaves both out.
+  The recording settings are one object, `recording: { mode, required, fps, retention_days, pause_on_text }`. A write
+  replaces it whole, so every change sends all five keys. Like the idle settings, it is sent only when the person
+  changes a setting or the saved definition has one; until then the form shows the defaults (off, 2 frames a second,
+  30 days) and the write leaves the key out, so a service that predates the setting still accepts it. One helper in
+  `agentForm.ts` applies this rule to every such setting.
 - **Runs** (`#/runs`). The runs, newest first: status, run id, agent, runtime, started and duration. A status
   filter asks the service for that status. The first page refreshes every five seconds (paused while the page is
   hidden); "Load more" follows the service's cursor. "New run" opens a dialog: pick an agent (the first enabled
@@ -31,8 +37,14 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
   requests still open are shown: once the run's status is completed, failed, cancelled or blocked, every request is
   closed. Below them, a Timeline (message replies as text, tool calls as compact rows, plans, and a row per kind of
   notice: harness, checkpoint, computer replaced, paused, parked, resumed, tools, reminder, answers, blocked, failed
-  and errors; a blocked run shows its reason in a banner), an Artifacts tab with signed download links and, when the
-  run has provenance, a Details tab. Steer sends a message to a live run. Cancel run ends it.
+  and errors; a blocked run shows its reason in a banner), an Artifacts tab with signed download links, when the
+  run has provenance a Details tab, and a Replay tab. Steer sends a message to a live run. Cancel run ends it.
+
+  Each timeline row has a Replay action (it appears on hover or focus) that opens the Replay tab at that row's
+  event. The Replay tab plays the run's recording: pick Play, or seek with the scrubber, the keyboard or a row.
+  Pauses in the recording (a take-over) show as gaps with their reason. A run with no recording says so. The
+  timeline shows the recording's events (started, paused, resumed, stopped, unavailable) as rows. The viewer's
+  Replay component is described in `docs/VIEWER.md`.
 
   An input request is the agent asking a person for values. Its card shows the agent's message and one control per
   field: a text or number input (a secret is a masked password input, cleared as soon as it is sent), a checkbox or a
@@ -223,18 +235,20 @@ From `web/`, `npm test -w @cm/sample` runs the sample's tests offline (jsdom, th
 
 - the API clients (run, agents, SSE parsing, failure text) and the token minting and proxy settings;
 - the stream follower, which reopens from the last sequence after a drop and never repeats an event;
-- the timeline reducer: cursor resume, message grouping, tool rows updated in place, one row per notice kind;
+- the timeline reducer: cursor resume, message grouping, tool rows updated in place, one row per notice kind, and
+  the replay action on each row (offered only when the host takes one);
 - the request cards per kind (an input request mounts the typed form), the typed input contract and its payload
   reader;
 - the agent form rules and the agent sheet and screen (validation, catalog insert, tools mode, the env-value rule
   on edit, refusal text);
 - the catalog loaders, against the shipped files and against bad entries;
 - the runs list (filtering, paging, refresh, the new-run dialog);
-- the run screen with the viewer mocked at the module boundary (take-over and lease, approval, input request, cancel,
-  steer, artifacts, a block, the Details tab and its links);
+- the run screen with the viewer and the replay mocked at the module boundary (take-over and lease, approval, input
+  request, cancel, steer, artifacts, a block, the Details tab and its links, a timeline row opening the replay at
+  its event);
 - the timeline rows for answers (an input answer's fields and whether each was provided, and that no value is read),
   harness start and the idle computer notices;
-- the agent form and sheet's idle settings, which are sent only once set;
+- the agent form and sheet's idle and recording settings, which are sent only once set;
 - the settings, routes and theme.
 
 `npm test -w @cm/computer-viewer` runs the viewer package's tests. `npm test -w otp-page` runs the sign-in page's.

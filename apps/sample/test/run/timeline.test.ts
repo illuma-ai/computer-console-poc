@@ -140,6 +140,28 @@ describe("distinct notice rows", () => {
   });
 });
 
+describe("recording rows", () => {
+  it("gives each recording event its own row, with the reason or code as the detail", () => {
+    const rows = notices(
+      fold([
+        event(1, "recording.started", { computer: { id: "c1" } }),
+        event(2, "recording.paused", { reason: "takeover" }),
+        event(3, "recording.resumed", {}),
+        event(4, "recording.stopped", { reason: "parked" }),
+        event(5, "recording.unavailable", { code: "no_screen" }),
+      ]),
+    );
+    expect(rows.map((row) => [row.type, row.text, row.detail])).toEqual([
+      ["recording.started", "Recording started", null],
+      ["recording.paused", "Recording paused", "takeover"],
+      ["recording.resumed", "Recording resumed", null],
+      ["recording.stopped", "Recording stopped", "parked"],
+      ["recording.unavailable", "Recording unavailable", "no_screen"],
+    ]);
+    expect(rows[4]).toMatchObject({ tone: "warning" });
+  });
+});
+
 describe("requests", () => {
   const request = {
     id: "req-1",

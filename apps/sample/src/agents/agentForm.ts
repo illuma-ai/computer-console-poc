@@ -1,4 +1,4 @@
-import type { AgentJson, AgentMcpServerWrite, AgentWrite, ToolsMode } from "../api/types";
+import type { AgentJson, AgentMcpServerWrite, AgentRecording, AgentWrite, RecordingMode, ToolsMode } from "../api/types";
 import { TOOLS } from "../catalog/catalog";
 import type { TemplateEntry, ToolEntry } from "../catalog/catalog";
 
@@ -10,6 +10,32 @@ import type { TemplateEntry, ToolEntry } from "../catalog/catalog";
 
 /** The runtimes the form offers. The run API does not list the allowed ones, so the form offers the four. */
 export const RUNTIMES = ["docker", "e2b", "agentcore", "lambda"] as const;
+
+/** The recording settings as the person types them. The retention is text, as typed. */
+export interface RecordingDraft {
+  readonly mode: RecordingMode;
+  readonly required: boolean;
+  readonly fps: 1 | 2;
+  readonly retentionDays: string;
+  readonly pauseOnText: boolean;
+}
+
+/** The settings a recording starts from: off, 2 frames a second, kept 30 days. */
+export const RECORDING_DEFAULT: RecordingDraft = {
+  mode: "off",
+  required: false,
+  fps: 2,
+  retentionDays: "30",
+  pauseOnText: false,
+};
+
+/**
+ * The draft after one setting changes. The whole object is replaced on each change, so the draft starts from the
+ * default when the person has not set any yet.
+ */
+export function recordingWith(draft: RecordingDraft | null, patch: Partial<RecordingDraft>): RecordingDraft {
+  return { ...(draft ?? RECORDING_DEFAULT), ...patch };
+}
 
 /** One MCP server as the form holds it. `key` is for React and removal only; it is never sent. */
 export interface ServerDraft {
@@ -42,6 +68,11 @@ export interface AgentForm {
   readonly idlePauseS: string | null;
   /** Whether a person's answer resumes a paused computer. `null` as for `idlePauseS`. */
   readonly resumeOnAnswer: boolean | null;
+  /*
+   * The recording settings. `null` means the person has not set them and the loaded definition had none, so the
+   * write leaves `recording` out. Otherwise the write sends the whole object.
+   */
+  readonly recording: RecordingDraft | null;
   /** Comma-separated channel names, e.g. `api, email`. */
   readonly allowedChannels: string;
   /** A JSON array of argv arrays. */
@@ -60,6 +91,7 @@ export type FormField =
   | "timeoutS"
   | "maxWaitS"
   | "idlePauseS"
+  | "recordingRetentionDays"
   | "allowedChannels"
   | "setupCommands"
   | "readyCheck"
@@ -82,6 +114,7 @@ export const BLANK_FORM: AgentForm = {
   takeoverAllowed: false,
   idlePauseS: null,
   resumeOnAnswer: null,
+  recording: null,
   allowedChannels: "api",
   setupCommands: "[]",
   readyCheck: "",
@@ -89,7 +122,7 @@ export const BLANK_FORM: AgentForm = {
 };
 
 /** Limits the service enforces, shown as the form's own rules. */
-export const LIMITS = { timeoutMin: 60, timeoutMax: 604800, maxWaitMin: 1, idlePauseMin: 0 } as const;
+export const LIMITS = { timeoutMin: 60, timeoutMax: 604800, maxWaitMin: 1, idlePauseMin: 0, retentionDaysMin: 1 } as const;
 
 /**
  * A field the browser refused to send. Its message names the problem and never echoes a value, which may hold a
@@ -129,6 +162,7 @@ export function formOf(agent: AgentJson): AgentForm {
     takeoverAllowed: agent.takeover_allowed,
     idlePauseS: agent.idle_pause_s === undefined ? null : String(agent.idle_pause_s),
     resumeOnAnswer: agent.resume_on_answer ?? null,
+    recording: agent.recording ? draftOf(agent.recording) : null,
     allowedChannels: agent.allowed_channels.join(", "),
     setupCommands: JSON.stringify(agent.setup_commands),
     readyCheck: agent.ready_check === null ? "" : JSON.stringify(agent.ready_check),
@@ -335,6 +369,12 @@ export function validateAgentForm(form: AgentForm, includeServers: boolean): For
       errors.idlePauseS = "Use a whole number of seconds, 0 for never";
     }
   }
+  if (form.recording !== null) {
+    const days = integerOf(form.recording.retentionDays);
+    if (days === null || days < LIMITS.retentionDaysMin) {
+      errors.recordingRetentionDays = `Use a whole number of at least ${LIMITS.retentionDaysMin}`;
+    }
+  }
   if (channelsOf(form.allowedChannels).length === 0) errors.allowedChannels = "Name at least one channel";
   try {
     commandsOf(form.setupCommands);
@@ -371,8 +411,8 @@ function serverProblemOf(servers: readonly ServerDraft[], includeServers: boolea
 /**
  * The request body for a create or an update. The servers are included only when `includeServers` is set. A
  * read shows env names without values, so an untouched list is not sent back (it would be refused for missing
- * values). A create always includes them. The idle settings are included only when they are set, so a service
- * that does not know them yet still accepts the write.
+ * values). A create always includes them. The idle and recording settings are included only when they are set
+ * (see {@link whenSet}).
  *
  * @param form The form as typed.
  * @param includeServers Whether the servers are part of this write.
@@ -398,12 +438,42 @@ export function bodyOf(form: AgentForm, includeServers: boolean): Partial<AgentW
     },
     max_wait_s: Number(form.maxWaitS),
     takeover_allowed: form.takeoverAllowed,
-    ...(form.idlePauseS !== null ? { idle_pause_s: Number(form.idlePauseS) } : {}),
-    ...(form.resumeOnAnswer !== null ? { resume_on_answer: form.resumeOnAnswer } : {}),
+    ...whenSet("idle_pause_s", form.idlePauseS === null ? null : Number(form.idlePauseS)),
+    ...whenSet("resume_on_answer", form.resumeOnAnswer),
     allowed_channels: channelsOf(form.allowedChannels),
     setup_commands: commandsOf(form.setupCommands),
     ready_check: form.readyCheck.trim() === "" ? null : argvOf(form.readyCheck),
+    ...whenSet("recording", form.recording === null ? null : recordingOf(form.recording)),
     ...(includeServers ? { mcp_servers: serversOf(form.servers) } : {}),
+  };
+}
+
+/**
+ * A setting a write carries only when it is set (not `null`), so a service that does not know it yet still
+ * accepts the write.
+ */
+function whenSet<K extends string, V>(key: K, value: V | null): { [P in K]?: V } {
+  return value === null ? {} : ({ [key]: value } as { [P in K]: V });
+}
+
+function draftOf(recording: AgentRecording): RecordingDraft {
+  return {
+    mode: recording.mode,
+    required: recording.required,
+    fps: recording.fps,
+    retentionDays: String(recording.retention_days),
+    pauseOnText: recording.pause_on_text,
+  };
+}
+
+/** The whole recording object a write sends. The retention was checked by {@link validateAgentForm}. */
+function recordingOf(draft: RecordingDraft): AgentRecording {
+  return {
+    mode: draft.mode,
+    required: draft.required,
+    fps: draft.fps,
+    retention_days: Number(draft.retentionDays),
+    pause_on_text: draft.pauseOnText,
   };
 }
 
