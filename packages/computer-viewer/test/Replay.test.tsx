@@ -59,8 +59,8 @@ describe("Replay", () => {
 
   it("seeks to an event that is not indexed, to the event before it", async () => {
     await renderReplay({ seq: 7 });
-    await waitFor(() => expect(screen.getByText("0:04 / 1:00")).toBeTruthy());
-    expect(pictureSrc()).toBe("blob:size-5");
+    await waitFor(() => expect(pictureSrc()).toBe("blob:size-5"));
+    expect(screen.getByText("0:04 / 1:00")).toBeTruthy();
   });
 
   it("seeks from the scrubber, and a repeated request for the same event seeks again", async () => {
