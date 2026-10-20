@@ -123,6 +123,17 @@ describe("RunScreen", () => {
     expect(screen.getByText("2.0 KiB")).toBeTruthy();
   });
 
+  it("does not pin a take-over once the run has ended, even when the stream left it open", async () => {
+    const api = fakeRunApi({
+      streamEvents: () =>
+        streamOf([event(1, "run.waiting_input", { request: takeover }), event(2, "run.blocked", { reason: "egress" })]),
+    });
+    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Requests" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Take control" })).toBeNull();
+  });
+
   it("keeps the run's requests above the tabs", async () => {
     const api = fakeRunApi({ streamEvents: () => streamOf([event(1, "run.waiting_input", { request: approval })]) });
     render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);

@@ -1,4 +1,5 @@
 import type { ArtifactJson, RunEvent, RunRequest, RunStatus, RunView } from "../api/types";
+import { TERMINAL_RUN_STATUSES } from "../api/types";
 
 /**
  * The run's state, folded from its event stream in order. Pure: no React and no network, so the rules are
@@ -11,6 +12,8 @@ import type { ArtifactJson, RunEvent, RunRequest, RunStatus, RunView } from "../
  * - A tool call is one row, updated in place as its status changes, not one row per update.
  * - A plan is one row, updated in place.
  * - Event types the sample does not know are ignored, as the run API's compatibility rules require.
+ * - A request is open only while the run is live. Once the run's status is final, every request is closed,
+ *   whatever the events said, so a card never waits for an answer that can no longer come.
  */
 
 /** How a notice is shown. `blocked` is the run's own stop, shown with its reason first. */
@@ -81,7 +84,7 @@ export interface RunState {
   /** The usage the final reply reported, when the agent sent one. */
   readonly usage: Readonly<Record<string, unknown>> | null;
   readonly timeline: readonly TimelineEntry[];
-  /** Requests still waiting for an answer, oldest first. */
+  /** Requests still waiting for an answer, oldest first. Empty once the run's status is final. */
   readonly openRequests: readonly RunRequest[];
   readonly artifacts: readonly ArtifactNotice[];
   readonly result: string | null;
@@ -117,13 +120,13 @@ export const INITIAL_RUN_STATE: RunState = {
  */
 export function withSnapshot(state: RunState, run: RunView): RunState {
   if (state.lastSeq > 0) return state;
-  return {
+  return closeRequestsWhenEnded({
     ...state,
     status: run.status,
     computerId: state.computerId ?? run.computer_id,
     startedAt: state.startedAt ?? run.started_at ?? run.created_at ?? null,
     runtime: state.runtime ?? run.runtime ?? null,
-  };
+  });
 }
 
 /**
@@ -134,6 +137,11 @@ export function withSnapshot(state: RunState, run: RunView): RunState {
  */
 export function applyEvent(state: RunState, event: RunEvent): RunState {
   if (event.seq <= state.lastSeq) return state;
+  return closeRequestsWhenEnded(foldEvent(state, event));
+}
+
+/** Folds an event that is past the cursor. The caller has checked the sequence. */
+function foldEvent(state: RunState, event: RunEvent): RunState {
   const base: RunState = { ...state, lastSeq: event.seq, startedAt: state.startedAt ?? event.at };
   const data = event.data;
   switch (event.type) {
@@ -236,6 +244,15 @@ export function applyEvent(state: RunState, event: RunEvent): RunState {
     default:
       return base;
   }
+}
+
+/**
+ * Closes every open request once the run's status is final. This is the one place a request stops being open
+ * because of the run's end; the cards only show what the state holds.
+ */
+function closeRequestsWhenEnded(state: RunState): RunState {
+  const ended = TERMINAL_RUN_STATUSES.some((status) => status === state.status);
+  return ended && state.openRequests.length > 0 ? { ...state, openRequests: [] } : state;
 }
 
 /** The run's progress events: a message chunk, a tool call, a plan or the setup check. Others are ignored. */
