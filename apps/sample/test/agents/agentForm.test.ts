@@ -48,6 +48,14 @@ describe("validateAgentForm", () => {
     expect(validateAgentForm(validForm({ maxWaitS: "1" }), false).maxWaitS).toBeUndefined();
   });
 
+  it("takes whole seconds for the idle pause, where 0 means never", () => {
+    expect(validateAgentForm(validForm({ idlePauseS: "0" }), false).idlePauseS).toBeUndefined();
+    expect(validateAgentForm(validForm({ idlePauseS: "900" }), false).idlePauseS).toBeUndefined();
+    expect(validateAgentForm(validForm({ idlePauseS: "-1" }), false).idlePauseS).toMatch(/0 for never/);
+    expect(validateAgentForm(validForm({ idlePauseS: "1.5" }), false).idlePauseS).toMatch(/0 for never/);
+    expect(validateAgentForm(validForm({ idlePauseS: "" }), false).idlePauseS).toMatch(/0 for never/);
+  });
+
   it("requires at least one channel", () => {
     expect(validateAgentForm(validForm({ allowedChannels: " , " }), false).allowedChannels).toBe("Name at least one channel");
   });
@@ -151,6 +159,14 @@ describe("the request body", () => {
     expect(bodyOf(form, true).mcp_servers?.[0]).not.toHaveProperty("tools");
   });
 
+  it("sends the idle settings, the pause in seconds and the resume flag", () => {
+    expect(bodyOf(validForm({ idlePauseS: "600", resumeOnAnswer: true }), false)).toMatchObject({
+      idle_pause_s: 600,
+      resume_on_answer: true,
+    });
+    expect(bodyOf(validForm(), false)).toMatchObject({ idle_pause_s: 0, resume_on_answer: false });
+  });
+
   it("carries the computer profile, the numbers and the lists in the service's shape", () => {
     const body = bodyOf(validForm({ allowedChannels: "api, email", setupCommands: '[["/usr/bin/a","b"]]', readyCheck: '["ok"]', takeoverAllowed: true }), false);
     expect(body).toMatchObject({
@@ -170,6 +186,14 @@ describe("the request body", () => {
 });
 
 describe("a saved agent", () => {
+  it("reads the idle settings, and takes the defaults when the service does not send them yet", () => {
+    expect(formOf(agentJson({ idle_pause_s: 300, resume_on_answer: true }))).toMatchObject({
+      idlePauseS: "300",
+      resumeOnAnswer: true,
+    });
+    expect(formOf(agentJson())).toMatchObject({ idlePauseS: "0", resumeOnAnswer: false });
+  });
+
   it("shows env names with no values, so a re-saved list needs the values again", () => {
     const saved = agentJson({
       mcp_servers: [{ name: "api", command: "api-mcp", args: [], env: [{ name: "TOKEN" }], tools: "indexed" }],

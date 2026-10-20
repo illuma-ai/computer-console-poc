@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import type { AnswerBody } from "../api/runApi";
 import type { RequestOption, RunRequest } from "../api/types";
 import { isWebUrl } from "../safeUrl";
+import { InputCard } from "./InputCard";
+import { inputRequestOf } from "./inputRequest";
 
 /**
  * The card a request is shown in. One renderer dispatches on the request's kind, so a screen never names a
@@ -38,14 +40,28 @@ export function cardLabel(kind: string): string {
       return "Approval request";
     case "question":
       return "Question";
+    case "input":
+      return "Input request";
     default:
       return "Request";
   }
 }
 
-/** Renders the card for one open request. */
+/** Renders the card for one open request. An `input` request is the typed form in its own card. */
 export function RequestCard(props: RequestCardProps): ReactElement {
   const { request } = props;
+  if (request.kind === "input") {
+    const payload = inputRequestOf(request.meta);
+    return (
+      <InputCard
+        title={request.title}
+        reason={payload.message}
+        fields={payload.fields}
+        busy={props.busy}
+        onAnswer={props.onAnswer}
+      />
+    );
+  }
   const label = cardLabel(request.kind);
   return (
     <Card aria-label={label} className="gap-3 py-4 shadow-sm">

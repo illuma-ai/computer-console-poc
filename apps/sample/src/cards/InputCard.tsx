@@ -8,12 +8,9 @@ import { acceptAnswer, inputProblems } from "./inputRequest";
 import type { InputAnswer, InputField } from "./inputRequest";
 
 /**
- * The card for a request for values (docs/plans/request-input-contract.md). It is a typed component with
- * tests only: the run API does not send this request kind yet, so no screen mounts it. When it does, the
- * request kind dispatches here.
- *
- * A secret field is masked and is cleared as soon as the answer is sent. The answer is handed to the caller
- * and is never kept by this card.
+ * The card for a request for values (docs/plans/request-input-contract.md). The request card mounts it for an
+ * `input` request. A secret field is masked and is cleared as soon as the answer is sent. The answer is handed
+ * to the caller and is never kept by this card.
  */
 
 /** Props of {@link InputCard}. */
@@ -58,7 +55,7 @@ export function InputCard({ title, reason, fields, busy = false, onAnswer }: Inp
       <CardHeader className="px-4">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="px-4">
+      <CardContent className="flex flex-col gap-3 px-4">
         {problems.length > 0 ? (
           <p role="alert" className="text-sm text-destructive">
             {problems[0]}
@@ -85,17 +82,31 @@ export function InputCard({ title, reason, fields, busy = false, onAnswer }: Inp
               <Button type="submit" size="sm" disabled={busy}>
                 Send
               </Button>
-              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onAnswer({ action: "decline" })}>
-                Decline
-              </Button>
-              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => onAnswer({ action: "cancel" })}>
-                Cancel
-              </Button>
+              <Exits busy={busy} onAnswer={onAnswer} />
             </div>
           </form>
         )}
+        {problems.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            <Exits busy={busy} onAnswer={onAnswer} />
+          </div>
+        ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/** Decline and Cancel: the ways out that send no values. A request that breaks the limits still offers them. */
+function Exits({ busy, onAnswer }: { readonly busy: boolean; readonly onAnswer: (answer: InputAnswer) => void }): ReactElement {
+  return (
+    <>
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onAnswer({ action: "decline" })}>
+        Decline
+      </Button>
+      <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => onAnswer({ action: "cancel" })}>
+        Cancel
+      </Button>
+    </>
   );
 }
 

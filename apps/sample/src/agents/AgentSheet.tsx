@@ -159,12 +159,27 @@ export function AgentSheet({ mode, agent, initial, api, onClose, onSaved }: Agen
               )}
             </Field>
           </div>
-          <Field label="Take-over allowed">
-            {({ id }) => (
-              <div className="flex items-center gap-2">
-                <Switch id={id} checked={form.takeoverAllowed} onCheckedChange={(checked) => update({ takeoverAllowed: checked })} />
-                <span className="text-sm text-muted-foreground">{form.takeoverAllowed ? "On" : "Off"}</span>
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Take-over allowed">
+              {({ id }) => (
+                <div className="flex items-center gap-2">
+                  <Switch id={id} checked={form.takeoverAllowed} onCheckedChange={(checked) => update({ takeoverAllowed: checked })} />
+                  <span className="text-sm text-muted-foreground">{form.takeoverAllowed ? "On" : "Off"}</span>
+                </div>
+              )}
+            </Field>
+            <Field label="Resume on answer">
+              {({ id }) => (
+                <div className="flex items-center gap-2">
+                  <Switch id={id} checked={form.resumeOnAnswer} onCheckedChange={(checked) => update({ resumeOnAnswer: checked })} />
+                  <span className="text-sm text-muted-foreground">{form.resumeOnAnswer ? "On" : "Off"}</span>
+                </div>
+              )}
+            </Field>
+          </div>
+          <Field label="Pause after idle (s)" error={fieldError("idlePauseS")} hint="0 never pauses">
+            {({ id, describedBy, invalid }) => (
+              <Input id={id} inputMode="numeric" value={form.idlePauseS} aria-describedby={describedBy} aria-invalid={invalid || undefined} onChange={(event) => update({ idlePauseS: event.target.value })} />
             )}
           </Field>
           <Field label="Setup commands" error={fieldError("setupCommands")} hint="A JSON list of commands, each a list of arguments">

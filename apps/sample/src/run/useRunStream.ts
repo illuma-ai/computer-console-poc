@@ -82,7 +82,9 @@ export function useRunStream(runId: string, api: RunApi): RunStream {
     return () => controller.abort();
   }, [api, runId]);
 
-  // The snapshot is read when the view opens and again once the run has ended.
+  // The snapshot is read when the view opens, again once the run has ended, and when the computer changes (so the
+  // provenance lists the computers the run has used).
+  const computerId = state.computerId;
   useEffect(() => {
     let current = true;
     api
@@ -94,7 +96,7 @@ export function useRunStream(runId: string, api: RunApi): RunStream {
     return () => {
       current = false;
     };
-  }, [api, runId, finished]);
+  }, [api, runId, finished, computerId]);
 
   return {
     state: snapshot ? withSnapshot(state, snapshot) : state,

@@ -129,6 +129,25 @@ describe("AgentSheet: edit", () => {
     ]);
   });
 
+  it("shows the saved idle settings and sends the ones the person changes", async () => {
+    const api = fakeAgentsApi();
+    const idle = agentJson({ idle_pause_s: 300, resume_on_answer: false });
+    render(<AgentSheet mode="edit" agent={idle} initial={formOf(idle)} api={api} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect((screen.getByLabelText("Pause after idle (s)") as HTMLInputElement).value).toBe("300");
+    await userEvent.clear(screen.getByLabelText("Pause after idle (s)"));
+    await userEvent.type(screen.getByLabelText("Pause after idle (s)"), "-5");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(screen.getByText(/0 for never/)).toBeTruthy();
+    expect(api.updateAgent).not.toHaveBeenCalled();
+
+    await userEvent.clear(screen.getByLabelText("Pause after idle (s)"));
+    await userEvent.type(screen.getByLabelText("Pause after idle (s)"), "0");
+    await userEvent.click(screen.getByRole("switch", { name: "Resume on answer" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api.updateAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.updateAgent, 1)).toMatchObject({ idle_pause_s: 0, resume_on_answer: true });
+  });
+
   it("disables an enabled agent and reports the agent it got back", async () => {
     const api = fakeAgentsApi();
     const onSaved = vi.fn();

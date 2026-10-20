@@ -15,7 +15,7 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
 - **Agents** (`#/agents`). The agent definitions, from `GET /v1/agents`. "New agent" starts blank;
   "New from template" starts from a template in the catalog. A row opens its agent in a sheet. The sheet holds
   the name, description, instructions, model, runtime, template, egress, timeout, max wait, take-over allowed,
-  allowed channels, setup commands, ready check and the tools. Saving validates first and shows each problem
+  pause after idle, resume on answer, allowed channels, setup commands, ready check and the tools. Saving validates first and shows each problem
   under its field. "Disable agent" turns an enabled agent off.
 - **Runs** (`#/runs`). The runs, newest first: status, run id, agent, runtime, started and duration. A status
   filter asks the service for that status. The first page refreshes every five seconds (paused while the page is
@@ -26,11 +26,26 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
   header shows the run id, its status and the agent's name (the agent's id on hover, or the id when the agent is
   not in the registry).
   Open requests are pinned at the top: a take-over (Take control, then Done or Can't do it), an approval (its
-  options) or a question (its options and a text answer). Only requests still open are shown: once the run's status
-  is completed, failed, cancelled or blocked, every request is closed. Below them, a Timeline (message replies as text,
-  tool calls as compact rows, plans, and a row per kind of notice: checkpoint, computer replaced, tools,
-  reminder, blocked, failed and errors; a blocked run shows its reason in a banner) and an Artifacts tab with
-  signed download links. Steer sends a message to a live run. Cancel run ends it.
+  options), a question (its options and a text answer) or an input request (a form of typed fields, below). Only
+  requests still open are shown: once the run's status is completed, failed, cancelled or blocked, every request is
+  closed. Below them, a Timeline (message replies as text, tool calls as compact rows, plans, and a row per kind of
+  notice: harness, checkpoint, computer replaced, paused, parked, resumed, tools, reminder, answers, blocked, failed
+  and errors; a blocked run shows its reason in a banner), an Artifacts tab with signed download links and, when the
+  run has provenance, a Details tab. Steer sends a message to a live run. Cancel run ends it.
+
+  An input request is the agent asking a person for values. Its card shows the agent's message and one control per
+  field: a text or number input (a secret is a masked password input, cleared as soon as it is sent), a checkbox or a
+  choice. Send answers with `{action: "accept", values}`, Decline with `{action: "decline"}` and Cancel with
+  `{action: "cancel"}`. A request that breaks the contract's limits (see `src/cards/inputRequest.ts`) says which limit
+  and still offers Decline and Cancel. The answered row names the fields sent; a secret reads "(provided)" and its value
+  is never kept in the page's state.
+
+  The Details tab lists the run's provenance: the agent (linked to the agent registry, with its version), each harness
+  (name, version, build, computer and time), the model, each computer (id, runtime, template, image digest, start, end
+  and reason), the session id with a link to its export when the service gives a web address, the service version and
+  the number of checkpoints. A part the service does not send is left out, and the tab is absent when the run has no
+  provenance. The provenance is read with the run's snapshot: when the view opens, when the run ends and when the
+  computer changes.
 - **Settings** (`#/settings`). The colour theme (system, light or dark; kept in this browser) and the endpoints
   the page uses (run API, agent registry, viewer origin and screen transport). The endpoints come from the build
   and the dev server, so they are shown, not edited.
@@ -198,8 +213,12 @@ These are where the sample is shaped by the service as it is today.
 - **No `url` on take-over requests.** The card shows a link only when the service adds a `url`.
 - **Take-over release.** Done and Can't do it call the release route, as does the viewer's own Release button while
   a lease is held.
-- **No request-for-values card is mounted.** The typed input card (`src/cards/InputCard.tsx`) is tested but the
-  run API does not send that request kind yet.
+- **Provenance is read with the snapshot.** The Details tab shows what `GET /v1/runs/{id}` returned. The agent link
+  opens the agents screen; the registry has no per-agent route, so the definition is not addressed by id.
+- **Idle settings are sent on every agent write.** `idle_pause_s` and `resume_on_answer` are always in the body. A
+  service without them refuses the write (its body is strict), so the two must roll out together.
+- **Answer values are read by name only.** The `request.answered` event is expected to carry `answer.values` for an
+  accepted input request. The sample reads the names and never a value.
 
 ## Tests
 
@@ -208,13 +227,16 @@ From `web/`, `npm test -w @cm/sample` runs the sample's tests offline (jsdom, th
 - the API clients (run, agents, SSE parsing, failure text) and the token minting and proxy settings;
 - the stream follower, which reopens from the last sequence after a drop and never repeats an event;
 - the timeline reducer: cursor resume, message grouping, tool rows updated in place, one row per notice kind;
-- the request cards per kind, and the typed input contract;
+- the request cards per kind (an input request mounts the typed form), the typed input contract and its payload
+  reader;
 - the agent form rules and the agent sheet and screen (validation, catalog insert, tools mode, the env-value rule
   on edit, refusal text);
 - the catalog loaders, against the shipped files and against bad entries;
 - the runs list (filtering, paging, refresh, the new-run dialog);
-- the run screen with the viewer mocked at the module boundary (take-over and lease, approval, cancel, steer,
-  artifacts, a block);
+- the run screen with the viewer mocked at the module boundary (take-over and lease, approval, input request, cancel,
+  steer, artifacts, a block, the Details tab and its links);
+- the timeline rows for answers, harness start and the idle computer notices, and that a secret's value stays out of
+  the state;
 - the settings, routes and theme.
 
 `npm test -w @cm/computer-viewer` runs the viewer package's tests. `npm test -w otp-page` runs the sign-in page's.

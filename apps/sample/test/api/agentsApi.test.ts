@@ -63,6 +63,8 @@ describe("createAgentsApi", () => {
       setup_commands: [],
       ready_check: null,
       allowed_channels: ["api"],
+      idle_pause_s: 0,
+      resume_on_answer: false,
     };
 
     const created = await api.createAgent(body);

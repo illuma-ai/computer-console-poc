@@ -1,5 +1,6 @@
 import type { ArtifactJson, RunEvent, RunRequest, RunStatus, RunView } from "../api/types";
 import { TERMINAL_RUN_STATUSES } from "../api/types";
+import { inputRequestOf } from "../cards/inputRequest";
 
 /**
  * The run's state, folded from its event stream in order. Pure: no React and no network, so the rules are
@@ -12,6 +13,7 @@ import { TERMINAL_RUN_STATUSES } from "../api/types";
  * - A tool call is one row, updated in place as its status changes, not one row per update.
  * - A plan is one row, updated in place.
  * - Event types the sample does not know are ignored, as the run API's compatibility rules require.
+ * - A request's answer is shown by the names of the values it sent. A secret's value is never read into the state.
  * - A request is open only while the run is live. Once the run's status is final, every request is closed,
  *   whatever the events said, so a card never waits for an answer that can no longer come.
  */
@@ -149,6 +151,10 @@ function foldEvent(state: RunState, event: RunEvent): RunState {
       const runtime = textOrNull(objectOf(data["computer"])?.["runtime"]) ?? base.runtime;
       return notice({ ...base, status: "running", runtime }, event, "info", "Computer started", runtime);
     }
+    case "harness.started": {
+      const detail = [textOrNull(data["name"]), textOrNull(data["version"])].filter((part) => part !== null).join(" ");
+      return notice(base, event, "info", "Harness started", detail === "" ? null : detail);
+    }
     case "run.progress":
       return progress(base, event);
     case "run.waiting_input": {
@@ -163,8 +169,15 @@ function foldEvent(state: RunState, event: RunEvent): RunState {
         reasonOf(request.meta),
       );
     }
+    case "request.answered":
     case "run.input_answered":
       return answered(base, event);
+    case "computer.paused":
+      return notice(base, event, "info", "Computer paused", textOrNull(data["reason"]));
+    case "computer.parked_deleted":
+      return notice(base, event, "info", "Computer parked and deleted", textOrNull(data["reason"]));
+    case "computer.resumed":
+      return notice(base, event, "success", "Computer resumed", null);
     case "takeover.granted":
       return notice(base, event, "warning", `Take-over granted to ${textOf(data["holder"], "a person")}`, null);
     case "takeover.released": {
@@ -281,19 +294,31 @@ function answered(state: RunState, event: RunEvent): RunState {
   const remaining = state.openRequests.filter((candidate) => candidate.id !== requestId);
   const status: RunStatus | "unknown" = remaining.length > 0 ? "waiting_input" : "running";
   const answer = objectOf(event.data["answer"]);
+  const expired = answer?.["expired"] === true;
+  const { tone, text } = expired
+    ? { tone: "warning" as const, text: "Request expired" }
+    : { tone: "success" as const, text: answerText(request, answer) };
+  return notice({ ...state, status, openRequests: remaining }, event, tone, text, null);
+}
+
+/**
+ * What an answer reads as. An input answer names the fields it sent; a secret field reads "provided" and its
+ * value is never read. Other answers name the option or the text the person chose.
+ */
+function answerText(request: RunRequest | undefined, answer: Readonly<Record<string, unknown>> | undefined): string {
+  if (answer?.["action"] === "decline") return "Declined";
+  if (answer?.["action"] === "cancel") return "Cancelled";
+  if (answer?.["action"] === "accept") {
+    const values = objectOf(answer["values"]) ?? {};
+    const secrets = new Set(
+      request?.kind === "input" ? inputRequestOf(request.meta).fields.filter((field) => field.secret).map((field) => field.name) : [],
+    );
+    const shown = Object.keys(values).map((name) => (secrets.has(name) ? `${name} (provided)` : name));
+    return shown.length > 0 ? `Answered: ${shown.join(", ")}` : "Answered";
+  }
   const optionId = textOrNull(answer?.["option_id"]);
   const option = request?.options.find((candidate) => candidate.id === optionId);
-  const text =
-    answer?.["expired"] === true
-      ? "Request expired"
-      : `Answered: ${option?.name ?? textOrNull(answer?.["text"]) ?? "answered"}`;
-  return notice(
-    { ...state, status, openRequests: remaining },
-    event,
-    answer?.["expired"] === true ? "warning" : "success",
-    text,
-    null,
-  );
+  return `Answered: ${option?.name ?? textOrNull(answer?.["text"]) ?? "answered"}`;
 }
 
 /** Appends a message chunk, or extends the entry that is open. Chunks are deltas, so they are joined as they are. */
@@ -381,8 +406,9 @@ function summaryOf(data: Readonly<Record<string, unknown>>): string | null {
   return textOrNull(data["reason"]);
 }
 
+/** The line a request shows under its title: a take-over's or approval's reason, or an input request's message. */
 function reasonOf(meta: Readonly<Record<string, unknown>>): string | null {
-  return textOrNull(meta["reason"]);
+  return textOrNull(meta["reason"]) ?? textOrNull(meta["message"]);
 }
 
 function idOf(value: unknown): string | null {
