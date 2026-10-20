@@ -1,4 +1,4 @@
-import type { AgentJson, AgentMcpServerWrite, AgentWrite, ToolsMode } from "../api/types";
+import type { AgentJson, AgentMcpServerWrite, AgentRecording, AgentWrite, RecordingMode, ToolsMode } from "../api/types";
 import { TOOLS } from "../catalog/catalog";
 import type { TemplateEntry, ToolEntry } from "../catalog/catalog";
 
@@ -10,6 +10,32 @@ import type { TemplateEntry, ToolEntry } from "../catalog/catalog";
 
 /** The runtimes the form offers. The run API does not list the allowed ones, so the form offers the four. */
 export const RUNTIMES = ["docker", "e2b", "agentcore", "lambda"] as const;
+
+/** The recording settings as the person types them. The retention is text, as typed. */
+export interface RecordingDraft {
+  readonly mode: RecordingMode;
+  readonly required: boolean;
+  readonly fps: 1 | 2;
+  readonly retentionDays: string;
+  readonly pauseOnText: boolean;
+}
+
+/** The settings a recording starts from: off, 2 frames a second, kept 30 days. */
+export const RECORDING_DEFAULT: RecordingDraft = {
+  mode: "off",
+  required: false,
+  fps: 2,
+  retentionDays: "30",
+  pauseOnText: false,
+};
+
+/**
+ * The draft after one setting changes. The whole object is replaced on each change, so the draft starts from the
+ * default when the person has not set any yet.
+ */
+export function recordingWith(draft: RecordingDraft | null, patch: Partial<RecordingDraft>): RecordingDraft {
+  return { ...(draft ?? RECORDING_DEFAULT), ...patch };
+}
 
 /** One MCP server as the form holds it. `key` is for React and removal only; it is never sent. */
 export interface ServerDraft {
@@ -36,14 +62,10 @@ export interface AgentForm {
   readonly maxWaitS: string;
   readonly takeoverAllowed: boolean;
   /*
-   * The recording settings. `null` means the person has not set it and the loaded definition did not have it, so
-   * the write leaves it out (an older service would refuse the key). The form shows the default for a `null`.
+   * The recording settings. `null` means the person has not set them and the loaded definition had none, so the
+   * write leaves `recording` out. Otherwise the write sends the whole object.
    */
-  readonly recording: boolean | null;
-  /** Text, as typed. The shown default is {@link RETENTION_DAYS_DEFAULT}. */
-  readonly recordingRetentionDays: string | null;
-  readonly recordingRequired: boolean | null;
-  readonly recordingPauseOnText: boolean | null;
+  readonly recording: RecordingDraft | null;
   /** Comma-separated channel names, e.g. `api, email`. */
   readonly allowedChannels: string;
   /** A JSON array of argv arrays. */
@@ -83,17 +105,11 @@ export const BLANK_FORM: AgentForm = {
   maxWaitS: "900",
   takeoverAllowed: false,
   recording: null,
-  recordingRetentionDays: null,
-  recordingRequired: null,
-  recordingPauseOnText: null,
   allowedChannels: "api",
   setupCommands: "[]",
   readyCheck: "",
   servers: [],
 };
-
-/** The retention the form shows until the person sets one. */
-export const RETENTION_DAYS_DEFAULT = 30;
 
 /** Limits the service enforces, shown as the form's own rules. */
 export const LIMITS = { timeoutMin: 60, timeoutMax: 604800, maxWaitMin: 1, retentionDaysMin: 1 } as const;
@@ -134,10 +150,7 @@ export function formOf(agent: AgentJson): AgentForm {
     timeoutS: String(agent.computer.timeout_s),
     maxWaitS: String(agent.max_wait_s),
     takeoverAllowed: agent.takeover_allowed,
-    recording: agent.recording ?? null,
-    recordingRetentionDays: agent.recording_retention_days === undefined ? null : String(agent.recording_retention_days),
-    recordingRequired: agent.recording_required ?? null,
-    recordingPauseOnText: agent.recording_pause_on_text ?? null,
+    recording: agent.recording ? draftOf(agent.recording) : null,
     allowedChannels: agent.allowed_channels.join(", "),
     setupCommands: JSON.stringify(agent.setup_commands),
     readyCheck: agent.ready_check === null ? "" : JSON.stringify(agent.ready_check),
@@ -338,8 +351,8 @@ export function validateAgentForm(form: AgentForm, includeServers: boolean): For
   if (maxWait === null || maxWait < LIMITS.maxWaitMin) {
     errors.maxWaitS = `Use a whole number of at least ${LIMITS.maxWaitMin}`;
   }
-  if (form.recordingRetentionDays !== null) {
-    const days = integerOf(form.recordingRetentionDays);
+  if (form.recording !== null) {
+    const days = integerOf(form.recording.retentionDays);
     if (days === null || days < LIMITS.retentionDaysMin) {
       errors.recordingRetentionDays = `Use a whole number of at least ${LIMITS.retentionDaysMin}`;
     }
@@ -409,18 +422,29 @@ export function bodyOf(form: AgentForm, includeServers: boolean): Partial<AgentW
     allowed_channels: channelsOf(form.allowedChannels),
     setup_commands: commandsOf(form.setupCommands),
     ready_check: form.readyCheck.trim() === "" ? null : argvOf(form.readyCheck),
-    ...recordingOf(form),
+    ...(form.recording !== null ? { recording: recordingOf(form.recording) } : {}),
     ...(includeServers ? { mcp_servers: serversOf(form.servers) } : {}),
   };
 }
 
-/** The recording settings the person set (or the loaded definition had). An unset one is left out of the body. */
-function recordingOf(form: AgentForm): Pick<AgentWrite, "recording" | "recording_retention_days" | "recording_required" | "recording_pause_on_text"> {
+function draftOf(recording: AgentRecording): RecordingDraft {
   return {
-    ...(form.recording !== null ? { recording: form.recording } : {}),
-    ...(form.recordingRetentionDays !== null ? { recording_retention_days: Number(form.recordingRetentionDays) } : {}),
-    ...(form.recordingRequired !== null ? { recording_required: form.recordingRequired } : {}),
-    ...(form.recordingPauseOnText !== null ? { recording_pause_on_text: form.recordingPauseOnText } : {}),
+    mode: recording.mode,
+    required: recording.required,
+    fps: recording.fps,
+    retentionDays: String(recording.retention_days),
+    pauseOnText: recording.pause_on_text,
+  };
+}
+
+/** The whole recording object a write sends. The retention was checked by {@link validateAgentForm}. */
+function recordingOf(draft: RecordingDraft): AgentRecording {
+  return {
+    mode: draft.mode,
+    required: draft.required,
+    fps: draft.fps,
+    retention_days: Number(draft.retentionDays),
+    pause_on_text: draft.pauseOnText,
   };
 }
 

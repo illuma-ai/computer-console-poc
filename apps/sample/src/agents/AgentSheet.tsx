@@ -10,7 +10,7 @@ import { Field, SELECT_CLASS } from "../components/Field";
 import { failureText } from "../api/runApi";
 import type { AgentsApi } from "../api/agentsApi";
 import type { AgentJson } from "../api/types";
-import { bodyOf, LIMITS, AgentFormError, RETENTION_DAYS_DEFAULT, RUNTIMES, serversSignature, validateAgentForm } from "./agentForm";
+import { bodyOf, LIMITS, AgentFormError, RECORDING_DEFAULT, RUNTIMES, recordingWith, serversSignature, validateAgentForm } from "./agentForm";
 import type { AgentForm, FormErrors, FormField } from "./agentForm";
 import { ToolsEditor } from "./ToolsEditor";
 
@@ -173,21 +173,41 @@ export function AgentSheet({ mode, agent, initial, api, onClose, onSaved }: Agen
 
           <fieldset className="flex flex-col gap-4 rounded-md border p-4">
             <legend className="px-1 text-sm font-medium">Recording</legend>
-            {switchField("Record the screen", form.recording ?? false, (checked) => update({ recording: checked }))}
+            {switchField("Record the screen", (form.recording ?? RECORDING_DEFAULT).mode === "on", (checked) =>
+              update({ recording: recordingWith(form.recording, { mode: checked ? "on" : "off" }) }),
+            )}
+            <Field label="Frames a second" hint="At most two: a frame is kept only when the picture changed">
+              {({ id, describedBy }) => (
+                <select
+                  id={id}
+                  className={SELECT_CLASS}
+                  value={(form.recording ?? RECORDING_DEFAULT).fps}
+                  aria-describedby={describedBy}
+                  onChange={(event) => update({ recording: recordingWith(form.recording, { fps: Number(event.target.value) === 1 ? 1 : 2 }) })}
+                >
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                </select>
+              )}
+            </Field>
             <Field label="Retention (days)" error={fieldError("recordingRetentionDays")}>
               {({ id, describedBy, invalid }) => (
                 <Input
                   id={id}
                   inputMode="numeric"
-                  value={form.recordingRetentionDays ?? String(RETENTION_DAYS_DEFAULT)}
+                  value={(form.recording ?? RECORDING_DEFAULT).retentionDays}
                   aria-describedby={describedBy}
                   aria-invalid={invalid || undefined}
-                  onChange={(event) => update({ recordingRetentionDays: event.target.value })}
+                  onChange={(event) => update({ recording: recordingWith(form.recording, { retentionDays: event.target.value }) })}
                 />
               )}
             </Field>
-            {switchField("Recording required", form.recordingRequired ?? false, (checked) => update({ recordingRequired: checked }))}
-            {switchField("Pause on typed text", form.recordingPauseOnText ?? false, (checked) => update({ recordingPauseOnText: checked }))}
+            {switchField("Recording required", (form.recording ?? RECORDING_DEFAULT).required, (checked) =>
+              update({ recording: recordingWith(form.recording, { required: checked }) }),
+            )}
+            {switchField("Pause on typed text", (form.recording ?? RECORDING_DEFAULT).pauseOnText, (checked) =>
+              update({ recording: recordingWith(form.recording, { pauseOnText: checked }) }),
+            )}
           </fieldset>
 
           <ToolsEditor form={form} onChange={(next) => setForm(next)} error={fieldError("servers")} />

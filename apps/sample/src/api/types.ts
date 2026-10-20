@@ -153,6 +153,22 @@ export interface AgentMcpServerJson {
   readonly tools?: ToolsMode | null;
 }
 
+/** The recording mode of an agent: `on` records the run's computer. */
+export type RecordingMode = "off" | "on";
+
+/**
+ * The agent's recording settings (`recording` on the definition). A write replaces the whole object, so a write
+ * sends all five keys or none. `fps` is 1 or 2; `retention_days` is at least 1 (the service sets the maximum).
+ */
+export interface AgentRecording {
+  readonly mode: RecordingMode;
+  readonly required: boolean;
+  readonly fps: 1 | 2;
+  readonly retention_days: number;
+  /** Stored for the strict switch on typed text. The service does not enforce it yet. */
+  readonly pause_on_text: boolean;
+}
+
 /** An agent as `agentJson` returns it. */
 export interface AgentJson {
   readonly id: string;
@@ -166,11 +182,8 @@ export interface AgentJson {
   readonly computer: AgentComputer;
   readonly max_wait_s: number;
   readonly takeover_allowed: boolean;
-  /** Absent from services that predate recording. */
-  readonly recording?: boolean;
-  readonly recording_retention_days?: number;
-  readonly recording_required?: boolean;
-  readonly recording_pause_on_text?: boolean;
+  /** Absent when the definition has no recording settings (the default is off). */
+  readonly recording?: AgentRecording;
   readonly mcp_servers: readonly AgentMcpServerJson[];
   readonly setup_commands: readonly (readonly string[])[];
   readonly ready_check: readonly string[] | null;
@@ -200,11 +213,8 @@ export interface AgentWrite {
   readonly computer: AgentComputer;
   readonly max_wait_s: number;
   readonly takeover_allowed: boolean;
-  /** Each is sent only when set, so a service that predates recording keeps accepting the write. */
-  readonly recording?: boolean;
-  readonly recording_retention_days?: number;
-  readonly recording_required?: boolean;
-  readonly recording_pause_on_text?: boolean;
+  /** Sent only when the person set a recording setting or the loaded definition had one; then the whole object. */
+  readonly recording?: AgentRecording;
   readonly mcp_servers: readonly AgentMcpServerWrite[];
   readonly setup_commands: readonly (readonly string[])[];
   readonly ready_check: readonly string[] | null;
