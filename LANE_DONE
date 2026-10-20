@@ -1,0 +1,9 @@
+Lane: console features, follow-up from review. Done.
+
+Gate: npm ci --no-audit --no-fund && npm run typecheck && npm test && npm run build
+Result: exit 0. Typecheck clean. Tests: computer-viewer 38, otp-page 5, sample 212, viewer 6, all passing.
+Build: computer-viewer, viewer, sample, otp-page built (sample has a chunk-size notice, not a failure).
+
+1. Agent writes send idle_pause_s and resume_on_answer only when set (or when the saved agent had them).
+2. Input answers read request.answered {action, fields: [{name, provided}]}; no values read; answer.values dropped.
+3. Answered assumptions removed from LANE_NOTES.md and docs/CONSOLE.md. Provenance shape remains open.
