@@ -1,0 +1,36 @@
+{
+  "name": "@cm/computer-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Framework-free client and React components for viewing a computer's screen, processes and files",
+  "license": "UNLICENSED",
+  "exports": {
+    ".": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
+    "./react/styles.css": "./src/react/styles.css"
+  },
+  "files": [
+    "dist",
+    "src/react/styles.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noUnusedLocals --noUnusedParameters --noImplicitReturns --noFallthroughCasesInSwitch"
+  },
+  "dependencies": {
+    "@novnc/novnc": "1.7.0"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  }
+}

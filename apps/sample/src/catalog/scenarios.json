@@ -1,0 +1,32 @@
+[
+  {
+    "id": "vendor-portal-otp",
+    "title": "Vendor portal (one-time code)",
+    "prompt": "In the browser, open http://host.docker.internal:8399/ and sign in as user 'tester'. When the page asks for the one-time code, request a take-over so a person can type the code. When the page shows SIGNED-IN-OK, reply with exactly that text and nothing else."
+  },
+  {
+    "id": "no-browser-task",
+    "title": "No-browser task",
+    "prompt": "Without a browser, write a three-line status summary of the sample checklist (one line per item: 1 setup, 2 build, 3 test) to /home/user/outbox/status.md, then reply with the path of the file."
+  },
+  {
+    "id": "files-report",
+    "title": "Files and report",
+    "prompt": "Create two CSV files of sample sales figures, one per quarter, in /home/user/outbox. Then write report.md in the same folder that compares the two quarters in a short paragraph. Reply with the list of files you produced."
+  },
+  {
+    "id": "long-task",
+    "title": "Long task",
+    "prompt": "Work through this checklist in order, one item at a time: 1) list the workspace, 2) write a note per item in /home/user/outbox, 3) check each note for gaps and fix them, 4) write a summary. Post a short progress line after each item. Take as long as you need."
+  },
+  {
+    "id": "sign-in-code-host",
+    "title": "Sign in to GitHub",
+    "prompt": "Open GitHub's sign-in page in the browser and start signing in. A person enters the password and any code: at the first step that needs one, request a take-over and continue after it. Reply with the account name shown after sign-in."
+  },
+  {
+    "id": "sign-in-service",
+    "title": "Sign in to a service in the computer",
+    "prompt": "Open the service that is already open in the browser and sign in. When it needs a password or a code, request a take-over so a person enters it themselves. Reply with the page title shown after sign-in."
+  }
+]

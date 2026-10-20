@@ -1,0 +1,53 @@
+[
+  {
+    "id": "browser-agent",
+    "name": "Browser agent",
+    "description": "A desktop computer with a visible browser; a person can take over the screen.",
+    "agent": {
+      "description": "Works in a browser on a desktop computer.",
+      "instructions": "Use the browser to complete the task. Leave every file you produce in /home/user/outbox.",
+      "model": null,
+      "computer": { "runtime": "e2b", "template": "cm-desktop-agent", "egress": "open", "timeout_s": 3600 },
+      "max_wait_s": 3600,
+      "takeover_allowed": true,
+      "allowed_channels": ["api"],
+      "setup_commands": [["/usr/local/bin/browser"]],
+      "ready_check": ["bash", "-c", "curl -sf http://127.0.0.1:9222/json/version >/dev/null"],
+      "tools": ["browser"]
+    }
+  },
+  {
+    "id": "shell-report-agent",
+    "name": "Shell/report agent",
+    "description": "No browser. Works in files and leaves its report in the outbox.",
+    "agent": {
+      "description": "Writes files and a report. Uses no browser.",
+      "instructions": "Do the task in the workspace with shell commands and files. Leave the report and every deliverable in /home/user/outbox, then reply with the list of files.",
+      "model": null,
+      "computer": { "runtime": "e2b", "template": "agent-computer", "egress": "none", "timeout_s": 3600 },
+      "max_wait_s": 1800,
+      "takeover_allowed": false,
+      "allowed_channels": ["api"],
+      "setup_commands": [],
+      "ready_check": null,
+      "tools": []
+    }
+  },
+  {
+    "id": "sign-in-agent",
+    "name": "Sign-in agent",
+    "description": "A browser agent that asks a person to sign in or enter codes through take-over.",
+    "agent": {
+      "description": "Signs in to a site. Never types a credential or a code itself.",
+      "instructions": "Use the browser to sign in where the task says. When a sign-in step needs a password, a code or a choice only a person can make, request a take-over and wait. If you cannot finish a step, say why and stop.",
+      "model": null,
+      "computer": { "runtime": "e2b", "template": "cm-desktop-agent", "egress": "open", "timeout_s": 3600 },
+      "max_wait_s": 3600,
+      "takeover_allowed": true,
+      "allowed_channels": ["api"],
+      "setup_commands": [["/usr/local/bin/browser"]],
+      "ready_check": ["bash", "-c", "curl -sf http://127.0.0.1:9222/json/version >/dev/null"],
+      "tools": ["browser"]
+    }
+  }
+]

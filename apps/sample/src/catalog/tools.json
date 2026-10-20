@@ -1,0 +1,14 @@
+[
+  {
+    "id": "browser",
+    "name": "Browser (Playwright MCP)",
+    "description": "Drives the Chromium that the desktop image starts, over DevTools on 127.0.0.1:9222.",
+    "server": {
+      "name": "browser",
+      "command": "playwright-mcp",
+      "args": ["--cdp-endpoint", "http://127.0.0.1:9222"],
+      "env": []
+    },
+    "tools": "full"
+  }
+]

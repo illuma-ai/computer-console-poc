@@ -1,0 +1,19 @@
+{
+  "name": "@cm/viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone computer viewer page: the session is read from the URL fragment",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noUnusedLocals --noUnusedParameters --noImplicitReturns --noFallthroughCasesInSwitch"
+  },
+  "dependencies": {
+    "@cm/computer-viewer": "0.1.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}

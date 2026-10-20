@@ -1,0 +1,15 @@
+{
+  "name": "otp-page",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Test sign-in page with a fixed one-time code, served beside the sample app",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "vite build",
+    "serve": "vite build && vite preview --host 0.0.0.0 --port 8399 --strictPort",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noUnusedLocals --noUnusedParameters --noImplicitReturns --noFallthroughCasesInSwitch"
+  }
+}
