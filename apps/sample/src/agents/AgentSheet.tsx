@@ -10,7 +10,7 @@ import { Field, SELECT_CLASS } from "../components/Field";
 import { failureText } from "../api/runApi";
 import type { AgentsApi } from "../api/agentsApi";
 import type { AgentJson } from "../api/types";
-import { bodyOf, LIMITS, AgentFormError, RUNTIMES, serversSignature, validateAgentForm } from "./agentForm";
+import { bodyOf, LIMITS, AgentFormError, RETENTION_DAYS_DEFAULT, RUNTIMES, serversSignature, validateAgentForm } from "./agentForm";
 import type { AgentForm, FormErrors, FormField } from "./agentForm";
 import { ToolsEditor } from "./ToolsEditor";
 
@@ -159,14 +159,7 @@ export function AgentSheet({ mode, agent, initial, api, onClose, onSaved }: Agen
               )}
             </Field>
           </div>
-          <Field label="Take-over allowed">
-            {({ id }) => (
-              <div className="flex items-center gap-2">
-                <Switch id={id} checked={form.takeoverAllowed} onCheckedChange={(checked) => update({ takeoverAllowed: checked })} />
-                <span className="text-sm text-muted-foreground">{form.takeoverAllowed ? "On" : "Off"}</span>
-              </div>
-            )}
-          </Field>
+          {switchField("Take-over allowed", form.takeoverAllowed, (checked) => update({ takeoverAllowed: checked }))}
           <Field label="Setup commands" error={fieldError("setupCommands")} hint="A JSON list of commands, each a list of arguments">
             {({ id, describedBy, invalid }) => (
               <Textarea id={id} rows={3} className="font-mono text-xs" value={form.setupCommands} aria-describedby={describedBy} aria-invalid={invalid || undefined} onChange={(event) => update({ setupCommands: event.target.value })} />
@@ -177,6 +170,25 @@ export function AgentSheet({ mode, agent, initial, api, onClose, onSaved }: Agen
               <Input id={id} className="font-mono text-xs" value={form.readyCheck} aria-describedby={describedBy} aria-invalid={invalid || undefined} onChange={(event) => update({ readyCheck: event.target.value })} />
             )}
           </Field>
+
+          <fieldset className="flex flex-col gap-4 rounded-md border p-4">
+            <legend className="px-1 text-sm font-medium">Recording</legend>
+            {switchField("Record the screen", form.recording ?? false, (checked) => update({ recording: checked }))}
+            <Field label="Retention (days)" error={fieldError("recordingRetentionDays")}>
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  inputMode="numeric"
+                  value={form.recordingRetentionDays ?? String(RETENTION_DAYS_DEFAULT)}
+                  aria-describedby={describedBy}
+                  aria-invalid={invalid || undefined}
+                  onChange={(event) => update({ recordingRetentionDays: event.target.value })}
+                />
+              )}
+            </Field>
+            {switchField("Recording required", form.recordingRequired ?? false, (checked) => update({ recordingRequired: checked }))}
+            {switchField("Pause on typed text", form.recordingPauseOnText ?? false, (checked) => update({ recordingPauseOnText: checked }))}
+          </fieldset>
 
           <ToolsEditor form={form} onChange={(next) => setForm(next)} error={fieldError("servers")} />
 
@@ -205,5 +217,19 @@ export function AgentSheet({ mode, agent, initial, api, onClose, onSaved }: Agen
         </form>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** A labelled on/off switch. */
+function switchField(label: string, checked: boolean, onChange: (checked: boolean) => void): ReactElement {
+  return (
+    <Field label={label}>
+      {({ id }) => (
+        <div className="flex items-center gap-2">
+          <Switch id={id} checked={checked} onCheckedChange={onChange} />
+          <span className="text-sm text-muted-foreground">{checked ? "On" : "Off"}</span>
+        </div>
+      )}
+    </Field>
   );
 }

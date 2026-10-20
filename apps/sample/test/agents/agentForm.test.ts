@@ -169,6 +169,49 @@ describe("the request body", () => {
   });
 });
 
+describe("the recording settings", () => {
+  it("leaves out each recording setting nobody set", () => {
+    const body = bodyOf(validForm(), false);
+    expect(body).not.toHaveProperty("recording");
+    expect(body).not.toHaveProperty("recording_retention_days");
+    expect(body).not.toHaveProperty("recording_required");
+    expect(body).not.toHaveProperty("recording_pause_on_text");
+  });
+
+  it("sends each recording setting the person set, with the retention as a number", () => {
+    const body = bodyOf(
+      validForm({ recording: true, recordingRetentionDays: "14", recordingRequired: false, recordingPauseOnText: true }),
+      false,
+    );
+    expect(body).toMatchObject({
+      recording: true,
+      recording_retention_days: 14,
+      recording_required: false,
+      recording_pause_on_text: true,
+    });
+  });
+
+  it("sends a recording setting the loaded definition had, even when nothing changed", () => {
+    const loaded = agentJson({ recording: false, recording_retention_days: 45 });
+    expect(bodyOf(formOf(loaded), false)).toMatchObject({ recording: false, recording_retention_days: 45 });
+    expect(bodyOf(formOf(loaded), false)).not.toHaveProperty("recording_required");
+  });
+
+  it("reads an absent recording setting as unset, not as off", () => {
+    expect(formOf(agentJson())).toMatchObject({ recording: null, recordingRetentionDays: null, recordingRequired: null });
+  });
+
+  it("refuses a retention that is not a whole number of at least one, and accepts none", () => {
+    expect(validateAgentForm(validForm({ recordingRetentionDays: "0" }), false).recordingRetentionDays).toBe(
+      "Use a whole number of at least 1",
+    );
+    expect(validateAgentForm(validForm({ recordingRetentionDays: "" }), false).recordingRetentionDays).toBeTruthy();
+    expect(validateAgentForm(validForm({ recordingRetentionDays: "2.5" }), false).recordingRetentionDays).toBeTruthy();
+    expect(validateAgentForm(validForm({ recordingRetentionDays: "1" }), false).recordingRetentionDays).toBeUndefined();
+    expect(validateAgentForm(validForm(), false).recordingRetentionDays).toBeUndefined();
+  });
+});
+
 describe("a saved agent", () => {
   it("shows env names with no values, so a re-saved list needs the values again", () => {
     const saved = agentJson({

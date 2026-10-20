@@ -15,8 +15,11 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
 - **Agents** (`#/agents`). The agent definitions, from `GET /v1/agents`. "New agent" starts blank;
   "New from template" starts from a template in the catalog. A row opens its agent in a sheet. The sheet holds
   the name, description, instructions, model, runtime, template, egress, timeout, max wait, take-over allowed,
-  allowed channels, setup commands, ready check and the tools. Saving validates first and shows each problem
+  allowed channels, setup commands, ready check, a Recording section (record the screen, retention in days,
+  recording required, pause on typed text) and the tools. Saving validates first and shows each problem
   under its field. "Disable agent" turns an enabled agent off.
+  A recording setting is sent only when the person sets it or the saved definition has it, and the form shows
+  its default (off, 30 days) until then, so a service that predates recording still accepts the write.
 - **Runs** (`#/runs`). The runs, newest first: status, run id, agent, runtime, started and duration. A status
   filter asks the service for that status. The first page refreshes every five seconds (paused while the page is
   hidden); "Load more" follows the service's cursor. "New run" opens a dialog: pick an agent (the first enabled

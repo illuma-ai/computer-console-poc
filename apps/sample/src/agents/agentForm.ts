@@ -35,6 +35,15 @@ export interface AgentForm {
   readonly timeoutS: string;
   readonly maxWaitS: string;
   readonly takeoverAllowed: boolean;
+  /*
+   * The recording settings. `null` means the person has not set it and the loaded definition did not have it, so
+   * the write leaves it out (an older service would refuse the key). The form shows the default for a `null`.
+   */
+  readonly recording: boolean | null;
+  /** Text, as typed. The shown default is {@link RETENTION_DAYS_DEFAULT}. */
+  readonly recordingRetentionDays: string | null;
+  readonly recordingRequired: boolean | null;
+  readonly recordingPauseOnText: boolean | null;
   /** Comma-separated channel names, e.g. `api, email`. */
   readonly allowedChannels: string;
   /** A JSON array of argv arrays. */
@@ -52,6 +61,7 @@ export type FormField =
   | "egress"
   | "timeoutS"
   | "maxWaitS"
+  | "recordingRetentionDays"
   | "allowedChannels"
   | "setupCommands"
   | "readyCheck"
@@ -72,14 +82,21 @@ export const BLANK_FORM: AgentForm = {
   timeoutS: "3600",
   maxWaitS: "900",
   takeoverAllowed: false,
+  recording: null,
+  recordingRetentionDays: null,
+  recordingRequired: null,
+  recordingPauseOnText: null,
   allowedChannels: "api",
   setupCommands: "[]",
   readyCheck: "",
   servers: [],
 };
 
+/** The retention the form shows until the person sets one. */
+export const RETENTION_DAYS_DEFAULT = 30;
+
 /** Limits the service enforces, shown as the form's own rules. */
-export const LIMITS = { timeoutMin: 60, timeoutMax: 604800, maxWaitMin: 1 } as const;
+export const LIMITS = { timeoutMin: 60, timeoutMax: 604800, maxWaitMin: 1, retentionDaysMin: 1 } as const;
 
 /**
  * A field the browser refused to send. Its message names the problem and never echoes a value, which may hold a
@@ -117,6 +134,10 @@ export function formOf(agent: AgentJson): AgentForm {
     timeoutS: String(agent.computer.timeout_s),
     maxWaitS: String(agent.max_wait_s),
     takeoverAllowed: agent.takeover_allowed,
+    recording: agent.recording ?? null,
+    recordingRetentionDays: agent.recording_retention_days === undefined ? null : String(agent.recording_retention_days),
+    recordingRequired: agent.recording_required ?? null,
+    recordingPauseOnText: agent.recording_pause_on_text ?? null,
     allowedChannels: agent.allowed_channels.join(", "),
     setupCommands: JSON.stringify(agent.setup_commands),
     readyCheck: agent.ready_check === null ? "" : JSON.stringify(agent.ready_check),
@@ -317,6 +338,12 @@ export function validateAgentForm(form: AgentForm, includeServers: boolean): For
   if (maxWait === null || maxWait < LIMITS.maxWaitMin) {
     errors.maxWaitS = `Use a whole number of at least ${LIMITS.maxWaitMin}`;
   }
+  if (form.recordingRetentionDays !== null) {
+    const days = integerOf(form.recordingRetentionDays);
+    if (days === null || days < LIMITS.retentionDaysMin) {
+      errors.recordingRetentionDays = `Use a whole number of at least ${LIMITS.retentionDaysMin}`;
+    }
+  }
   if (channelsOf(form.allowedChannels).length === 0) errors.allowedChannels = "Name at least one channel";
   try {
     commandsOf(form.setupCommands);
@@ -382,7 +409,18 @@ export function bodyOf(form: AgentForm, includeServers: boolean): Partial<AgentW
     allowed_channels: channelsOf(form.allowedChannels),
     setup_commands: commandsOf(form.setupCommands),
     ready_check: form.readyCheck.trim() === "" ? null : argvOf(form.readyCheck),
+    ...recordingOf(form),
     ...(includeServers ? { mcp_servers: serversOf(form.servers) } : {}),
+  };
+}
+
+/** The recording settings the person set (or the loaded definition had). An unset one is left out of the body. */
+function recordingOf(form: AgentForm): Pick<AgentWrite, "recording" | "recording_retention_days" | "recording_required" | "recording_pause_on_text"> {
+  return {
+    ...(form.recording !== null ? { recording: form.recording } : {}),
+    ...(form.recordingRetentionDays !== null ? { recording_retention_days: Number(form.recordingRetentionDays) } : {}),
+    ...(form.recordingRequired !== null ? { recording_required: form.recordingRequired } : {}),
+    ...(form.recordingPauseOnText !== null ? { recording_pause_on_text: form.recordingPauseOnText } : {}),
   };
 }
 

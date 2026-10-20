@@ -166,6 +166,11 @@ export interface AgentJson {
   readonly computer: AgentComputer;
   readonly max_wait_s: number;
   readonly takeover_allowed: boolean;
+  /** Absent from services that predate recording. */
+  readonly recording?: boolean;
+  readonly recording_retention_days?: number;
+  readonly recording_required?: boolean;
+  readonly recording_pause_on_text?: boolean;
   readonly mcp_servers: readonly AgentMcpServerJson[];
   readonly setup_commands: readonly (readonly string[])[];
   readonly ready_check: readonly string[] | null;
@@ -195,6 +200,11 @@ export interface AgentWrite {
   readonly computer: AgentComputer;
   readonly max_wait_s: number;
   readonly takeover_allowed: boolean;
+  /** Each is sent only when set, so a service that predates recording keeps accepting the write. */
+  readonly recording?: boolean;
+  readonly recording_retention_days?: number;
+  readonly recording_required?: boolean;
+  readonly recording_pause_on_text?: boolean;
   readonly mcp_servers: readonly AgentMcpServerWrite[];
   readonly setup_commands: readonly (readonly string[])[];
   readonly ready_check: readonly string[] | null;
