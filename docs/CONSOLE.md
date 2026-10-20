@@ -16,7 +16,8 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
   "New from template" starts from a template in the catalog. A row opens its agent in a sheet. The sheet holds
   the name, description, instructions, model, runtime, template, egress, timeout, max wait, take-over allowed,
   pause after idle, resume on answer, allowed channels, setup commands, ready check and the tools. Saving validates first and shows each problem
-  under its field. "Disable agent" turns an enabled agent off.
+  under its field. "Disable agent" turns an enabled agent off. Pause after idle and resume on answer show "Service
+  default" until the person sets them, or while the saved agent has no value for them: a write then leaves both out.
 - **Runs** (`#/runs`). The runs, newest first: status, run id, agent, runtime, started and duration. A status
   filter asks the service for that status. The first page refreshes every five seconds (paused while the page is
   hidden); "Load more" follows the service's cursor. "New run" opens a dialog: pick an agent (the first enabled
@@ -37,8 +38,8 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
   field: a text or number input (a secret is a masked password input, cleared as soon as it is sent), a checkbox or a
   choice. Send answers with `{action: "accept", values}`, Decline with `{action: "decline"}` and Cancel with
   `{action: "cancel"}`. A request that breaks the contract's limits (see `src/cards/inputRequest.ts`) says which limit
-  and still offers Decline and Cancel. The answered row names the fields sent; a secret reads "(provided)" and its value
-  is never kept in the page's state.
+  and still offers Decline and Cancel. The answered row names each field and whether it was provided; a value is never
+  read or kept in the page's state.
 
   The Details tab lists the run's provenance: the agent (linked to the agent registry, with its version), each harness
   (name, version, build, computer and time), the model, each computer (id, runtime, template, image digest, start, end
@@ -215,10 +216,6 @@ These are where the sample is shaped by the service as it is today.
   a lease is held.
 - **Provenance is read with the snapshot.** The Details tab shows what `GET /v1/runs/{id}` returned. The agent link
   opens the agents screen; the registry has no per-agent route, so the definition is not addressed by id.
-- **Idle settings are sent on every agent write.** `idle_pause_s` and `resume_on_answer` are always in the body. A
-  service without them refuses the write (its body is strict), so the two must roll out together.
-- **Answer values are read by name only.** The `request.answered` event is expected to carry `answer.values` for an
-  accepted input request. The sample reads the names and never a value.
 
 ## Tests
 
@@ -235,8 +232,9 @@ From `web/`, `npm test -w @cm/sample` runs the sample's tests offline (jsdom, th
 - the runs list (filtering, paging, refresh, the new-run dialog);
 - the run screen with the viewer mocked at the module boundary (take-over and lease, approval, input request, cancel,
   steer, artifacts, a block, the Details tab and its links);
-- the timeline rows for answers, harness start and the idle computer notices, and that a secret's value stays out of
-  the state;
+- the timeline rows for answers (an input answer's fields and whether each was provided, and that no value is read),
+  harness start and the idle computer notices;
+- the agent form and sheet's idle settings, which are sent only once set;
 - the settings, routes and theme.
 
 `npm test -w @cm/computer-viewer` runs the viewer package's tests. `npm test -w otp-page` runs the sign-in page's.
