@@ -1,8 +1,0 @@
-# LANE_DONE
-
-Brief: align the console's recording settings and the replay loader with the run service's documented API.
-
-Gate: `npm ci --no-audit --no-fund && npm run typecheck && npm test && npm run build`: exit 0.
-Tests: computer-viewer 83, sample 199, and the two other workspaces (5 and 6) all pass.
-
-The field names the documentation does not state are listed in LANE_NOTES.md ("Assumptions to confirm").
