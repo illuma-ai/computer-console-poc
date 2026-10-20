@@ -45,4 +45,5 @@ None.
 
 ## Gate
 
-Pending: the gate is run at the end of this session and recorded in LANE_DONE.
+`npm ci --no-audit --no-fund && npm run typecheck && npm test && npm run build`: exit 0 from a clean install.
+Tests: computer-viewer 78, sample 197, and the two other workspaces (5 and 6) all pass.

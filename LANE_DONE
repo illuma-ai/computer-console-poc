@@ -1,0 +1,11 @@
+# Lane done: replay player, review fixes
+
+Gate: `npm ci --no-audit --no-fund && npm run typecheck && npm test && npm run build`, from a clean install, exit 0.
+
+- typecheck: exit 0
+- test: exit 0 (computer-viewer 78, sample 197, two other workspaces 5 and 6)
+- build: exit 0
+
+Brief items:
+1. `.cmr` segments read as the recorder writes them (big-endian, one-byte name length). Exact-bytes test added; fixtures, format comment and docs/VIEWER.md updated.
+2. Recording section on the agent sheet (four nullable fields, sent only when set or loaded). Tests both ways; docs/CONSOLE.md updated.
