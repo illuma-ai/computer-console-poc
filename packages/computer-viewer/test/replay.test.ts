@@ -9,6 +9,7 @@ import {
   FIXTURE_INDEX,
   FIXTURE_MANIFEST,
   fixtureBodies,
+  fixtureIndexBody,
   fixtureFetcher,
   INDEX_URL,
   json,
@@ -134,7 +135,7 @@ describe("the replay model", () => {
 
   it("names each pause in words, and a reason it does not know as a plain pause", () => {
     expect(pauseLabel("takeover")).toBe("A person took control");
-    expect(pauseLabel("sensitive_input")).toBe("Sensitive input");
+    expect(pauseLabel("sensitive_input")).toBe("Recording paused");
     expect(pauseLabel("something_new")).toBe("Recording paused");
   });
 });
@@ -160,13 +161,34 @@ describe("findPicture", () => {
 });
 
 describe("loadRecording", () => {
-  it("reads the manifest and the index", async () => {
+  it("reads the manifest and the index beside it", async () => {
     const { fetcher, urls } = fixtureFetcher();
     const loaded = await loadRecording(fetcher, MANIFEST_URL);
     expect(loaded.manifest.duration_ms).toBe(60_000);
     expect(loaded.manifest.segments.map((segment) => segment.url)).toEqual([SEGMENT_0_URL, expect.any(String)]);
     expect(loaded.index).toEqual(FIXTURE_INDEX);
+    expect(loaded.indexTruncated).toBe(false);
     expect(urls).toEqual([MANIFEST_URL, INDEX_URL]);
+  });
+
+  it("reads an index the service cut short, and says so", async () => {
+    const { fetcher } = fixtureFetcher({ ...fixtureBodies(), [INDEX_URL]: () => json(fixtureIndexBody(true)) });
+    const loaded = await loadRecording(fetcher, MANIFEST_URL);
+    expect(loaded.index).toEqual(FIXTURE_INDEX);
+    expect(loaded.indexTruncated).toBe(true);
+  });
+
+  it("reads a bare array as no index, because the index is an object with its events", async () => {
+    const { fetcher } = fixtureFetcher({ ...fixtureBodies(), [INDEX_URL]: () => json(FIXTURE_INDEX) });
+    const loaded = await loadRecording(fetcher, MANIFEST_URL);
+    expect(loaded.index).toEqual([]);
+    expect(loaded.indexTruncated).toBe(false);
+  });
+
+  it("reads a segment whose store cannot sign links, and refuses to load it", async () => {
+    const manifest = readManifest({ ...FIXTURE_MANIFEST, segments: [{ url: null, from_ms: 0, to_ms: 9_000, size: 1 }] });
+    expect(manifest.segments[0]!.url).toBeNull();
+    expect(await codeOf(loadSegment(fixtureFetcher().fetcher, null))).toBe("unavailable");
   });
 
   it("reports a run with no recording as not found", async () => {
@@ -191,10 +213,12 @@ describe("loadRecording", () => {
     const { fetcher } = fixtureFetcher({ ...fixtureBodies(), [INDEX_URL]: () => binary(new ArrayBuffer(3)) });
     const loaded = await loadRecording(fetcher, MANIFEST_URL);
     expect(loaded.index).toEqual([]);
+    expect(loaded.indexTruncated).toBe(false);
   });
 
   it("refuses a manifest whose segment has no window", () => {
     expect(() => readManifest({ segments: [{ url: SEGMENT_0_URL }] })).toThrow(ViewerError);
+    expect(() => readManifest({ segments: [{ url: 42, from_ms: 0, to_ms: 1 }] })).toThrow(ViewerError);
     expect(() => readManifest("not an object")).toThrow(ViewerError);
   });
 

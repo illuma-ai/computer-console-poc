@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { Replay } from "../src/react/Replay";
 import type { ReplaySeek } from "../src/react/Replay";
 import type { FetchLike } from "../src/client/types";
-import { binary, fixtureBodies, fixtureFetcher, MANIFEST_URL, SEGMENT_0_URL } from "./replay-fixtures";
+import { binary, fixtureBodies, fixtureFetcher, fixtureIndexBody, INDEX_URL, json, MANIFEST_URL, SEGMENT_0_URL } from "./replay-fixtures";
 
 /*
  * The picture is an object URL made from the frame's bytes, so `blob:size-N` names the frame of N bytes.
@@ -85,6 +85,17 @@ describe("Replay", () => {
     await renderReplay();
     const list = screen.getByRole("list", { name: "Paused spans" });
     expect(list.textContent).toBe("0:20 to 0:25: A person took control");
+  });
+
+  it("says when the event index was cut short", async () => {
+    const { fetcher } = fixtureFetcher({ ...fixtureBodies(), [INDEX_URL]: () => json(fixtureIndexBody(true)) });
+    render(<Replay manifestUrl={MANIFEST_URL} fetcher={fetcher} seek={null} />);
+    expect(await screen.findByText(/The event index is cut short/)).toBeTruthy();
+  });
+
+  it("does not say so when the index is complete", async () => {
+    await renderReplay();
+    expect(screen.queryByText(/The event index is cut short/)).toBeNull();
   });
 
   it("shows no picture after a pause until the screen next changes", async () => {

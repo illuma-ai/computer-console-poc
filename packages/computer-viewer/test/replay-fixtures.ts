@@ -9,7 +9,8 @@ import type { RecordingManifest } from "../src/replay/load";
  */
 
 export const MANIFEST_URL = "https://console.example.test/api/runs/run-fixture/recording";
-export const INDEX_URL = "https://segments.example.test/recording/index.json";
+/** The index is beside the manifest, at `.../recording/index`. */
+export const INDEX_URL = `${MANIFEST_URL}/index`;
 export const SEGMENT_0_URL = "https://segments.example.test/recording/seg-0.cmr";
 export const SEGMENT_1_URL = "https://segments.example.test/recording/seg-30000.cmr";
 
@@ -52,7 +53,6 @@ export function encodeSegment(frames: readonly FixtureFrame[], options: { format
  */
 export const FIXTURE_MANIFEST: RecordingManifest = {
   state: "stopped",
-  started_at: "2026-10-19T10:00:00Z",
   duration_ms: 60_000,
   width: 1280,
   height: 800,
@@ -61,7 +61,6 @@ export const FIXTURE_MANIFEST: RecordingManifest = {
     { url: SEGMENT_1_URL, from_ms: 30_000, to_ms: 60_000, size: 0 },
   ],
   pauses: [{ from_ms: 20_000, to_ms: 25_000, reason: "takeover" }],
-  index_url: INDEX_URL,
 };
 
 /** The event index for the fixture: the run's first event, a tool call at 4 s, and the end at 26 s. */
@@ -71,11 +70,16 @@ export const FIXTURE_INDEX = [
   { seq: 9, type: "run.completed", offset_ms: 26_000 },
 ];
 
+/** The index body as the service sends it: its events, and whether it was cut at its limit. */
+export function fixtureIndexBody(truncated = false): { events: typeof FIXTURE_INDEX; truncated: boolean } {
+  return { events: FIXTURE_INDEX, truncated };
+}
+
 /** The bodies a fixture host serves, by URL. A missing URL answers 404. */
 export function fixtureBodies(): Record<string, () => Response> {
   return {
     [MANIFEST_URL]: () => json(FIXTURE_MANIFEST),
-    [INDEX_URL]: () => json(FIXTURE_INDEX),
+    [INDEX_URL]: () => json(fixtureIndexBody()),
     [SEGMENT_0_URL]: () => binary(encodeSegment([{ tMs: 0, bytes: 3 }, { tMs: 4_000, bytes: 5 }])),
     [SEGMENT_1_URL]: () => binary(encodeSegment([])),
   };

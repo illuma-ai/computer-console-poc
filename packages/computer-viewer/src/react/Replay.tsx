@@ -273,6 +273,9 @@ export function Replay({ manifestUrl, fetcher, seek }: ReplayProps): ReactElemen
               ))}
             </div>
           </div>
+          {recording?.indexTruncated ? (
+            <p className="cv-status">The event index is cut short: an event after its last line seeks to that line.</p>
+          ) : null}
           {manifest.pauses.length > 0 ? (
             <>
               <div className="cv-track" aria-hidden="true">

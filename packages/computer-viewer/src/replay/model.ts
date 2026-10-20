@@ -7,20 +7,21 @@ import type { CmrFrame } from "./format";
 
 /** A segment as the manifest lists it: its window on the recording's clock, in ms from the start. */
 export interface RecordingSegment {
-  readonly url: string;
+  /** The link minted for this request, or `null` when the store cannot sign one. */
+  readonly url: string | null;
   readonly from_ms: number;
   readonly to_ms: number;
   readonly size: number;
 }
 
-/** A span with no picture. `reason` is the server's word for why (`takeover`, `sensitive_input`, ...). */
+/** A span with no picture. `reason` is the server's word for why (`takeover` today). */
 export interface RecordingPause {
   readonly from_ms: number;
   readonly to_ms: number;
   readonly reason: string;
 }
 
-/** One line of the event index: a run event's sequence number and its time in the recording. */
+/** One line of the event index: a run event's sequence number, type and time in the recording (no event data). */
 export interface RecordingIndexEntry {
   readonly seq: number;
   readonly type: string;
@@ -94,14 +95,5 @@ export function clockText(ms: number): string {
 
 /** The words shown for a pause span. A reason the viewer does not name reads as a plain pause. */
 export function pauseLabel(reason: string): string {
-  switch (reason) {
-    case "takeover":
-      return "A person took control";
-    case "sensitive_input":
-      return "Sensitive input";
-    case "spool_full":
-      return "Recording paused: storage full";
-    default:
-      return "Recording paused";
-  }
+  return reason === "takeover" ? "A person took control" : "Recording paused";
 }
