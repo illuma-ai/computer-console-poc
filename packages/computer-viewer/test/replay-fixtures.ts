@@ -20,25 +20,26 @@ export interface FixtureFrame {
 }
 
 /**
- * Encodes a `.cmr` segment the way the format describes it: magic, format name, width, height, then records.
- * It is written from the layout in `docs/VIEWER.md`, not from the parser, so the tests check both.
+ * Encodes a `.cmr` segment the way the format describes it: magic, a one-byte format name length, the name,
+ * width, height, then records. All integers are big-endian. It is written from the layout in `docs/VIEWER.md`,
+ * not from the parser, so the tests check both.
  */
 export function encodeSegment(frames: readonly FixtureFrame[], options: { format?: string } = {}): ArrayBuffer {
   const format = new TextEncoder().encode(options.format ?? CMR_FORMAT);
   const records = frames.map((frame) => ({ tMs: frame.tMs, jpeg: new Uint8Array(frame.bytes).fill(0xff) }));
-  const size = 4 + 2 + format.length + 4 + records.reduce((total, record) => total + 8 + record.jpeg.length, 0);
+  const size = 4 + 1 + format.length + 4 + records.reduce((total, record) => total + 8 + record.jpeg.length, 0);
   const out = new Uint8Array(size);
   const view = new DataView(out.buffer);
   out.set(new TextEncoder().encode(CMR_MAGIC), 0);
-  view.setUint16(4, format.length, true);
-  out.set(format, 6);
-  let offset = 6 + format.length;
-  view.setUint16(offset, 1280, true);
-  view.setUint16(offset + 2, 800, true);
+  view.setUint8(4, format.length);
+  out.set(format, 5);
+  let offset = 5 + format.length;
+  view.setUint16(offset, 1280, false);
+  view.setUint16(offset + 2, 800, false);
   offset += 4;
   for (const record of records) {
-    view.setUint32(offset, record.tMs, true);
-    view.setUint32(offset + 4, record.jpeg.length, true);
+    view.setUint32(offset, record.tMs, false);
+    view.setUint32(offset + 4, record.jpeg.length, false);
     out.set(record.jpeg, offset + 8);
     offset += 8 + record.jpeg.length;
   }

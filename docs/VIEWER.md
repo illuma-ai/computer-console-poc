@@ -140,17 +140,19 @@ cannot be read, playback works and seeking by event goes to the start.
 **Segments** are fetched when the playhead reaches them, with the next one fetched ahead. Only the
 segments near the playhead stay in memory.
 
-**Segment format `jpeg-frames-v1`** (`.cmr`, version 1). All integers are little-endian:
+**Segment format `jpeg-frames-v1`** (`.cmr`, version 1). All integers are big-endian. This is the
+layout the recorder in computerd writes; the viewer's test fixtures and an exact-bytes test are built from it.
 
 | Bytes | Field | Meaning |
 |---|---|---|
 | 4 | magic | `CMR1` |
-| 2 + n | format | a `u16` length, then the UTF-8 name. Must be `jpeg-frames-v1`; any other name is refused |
+| 1 + n | format | a `u8` length n, then the n UTF-8 bytes of the name. Must be `jpeg-frames-v1` (n = 14); any other name is refused |
 | 4 | width, height | `u16` each |
 | 8 + len, repeated | records | `t_ms` (`u32`, from the segment's first frame), `len` (`u32`), then `len` bytes of JPEG |
 
-A record cut short at the end of a segment is dropped; the complete frames before it play. The
-writer (computerd) must write this layout; the viewer's test fixtures are built from it.
+A 1280x800 header is `43 4d 52 31 0e 6a 70 65 67 2d 66 72 61 6d 65 73 2d 76 31 05 00 03 20`.
+
+A record cut short at the end of a segment is dropped; the complete frames before it play.
 
 **Playback.** The replay starts paused. Frames are written only when the picture changes, so each
 frame is shown until the next one starts, and the picture at a time is the last frame before it,

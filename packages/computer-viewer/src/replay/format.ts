@@ -3,9 +3,9 @@ import { ViewerError } from "../client/types";
 /**
  * The recording segment format this viewer reads, `.cmr` version 1 (`docs/VIEWER.md`, "Replay").
  *
- * Layout, all integers little-endian:
+ * Layout, all integers big-endian (the recorder in computerd writes exactly this):
  * - `CMR1` (4 bytes, ASCII)
- * - the format name: a `u16` byte length, then that many UTF-8 bytes. Must be `jpeg-frames-v1`.
+ * - the format name: one `u8` byte length N, then N UTF-8 bytes. Must be `jpeg-frames-v1` (N = 14).
  * - `width` and `height`: `u16` each.
  * - then records to the end of the segment: `t_ms` (`u32`, offset from the segment's first frame),
  *   `len` (`u32`), and `len` bytes of JPEG.
@@ -31,7 +31,7 @@ export interface CmrSegment {
   readonly frames: readonly CmrFrame[];
 }
 
-const HEADER_FIXED_BYTES = 6;
+const MAGIC_AND_LENGTH_BYTES = 5;
 const RECORD_HEADER_BYTES = 8;
 
 /**
@@ -44,25 +44,25 @@ const RECORD_HEADER_BYTES = 8;
  */
 export function parseSegment(bytes: ArrayBuffer): CmrSegment {
   const invalid = (): ViewerError => new ViewerError("invalid_recording", "The recording segment could not be read");
-  if (bytes.byteLength < HEADER_FIXED_BYTES) throw invalid();
+  if (bytes.byteLength < MAGIC_AND_LENGTH_BYTES) throw invalid();
   const view = new DataView(bytes);
   const decoder = new TextDecoder();
   if (decoder.decode(new Uint8Array(bytes, 0, 4)) !== CMR_MAGIC) throw invalid();
 
-  const formatLength = view.getUint16(4, true);
-  let offset = HEADER_FIXED_BYTES;
+  const formatLength = view.getUint8(4);
+  let offset = MAGIC_AND_LENGTH_BYTES;
   if (offset + formatLength + 4 > bytes.byteLength) throw invalid();
   const format = decoder.decode(new Uint8Array(bytes, offset, formatLength));
   offset += formatLength;
   if (format !== CMR_FORMAT) throw new ViewerError("unsupported_recording", "The recording format is not supported");
-  const width = view.getUint16(offset, true);
-  const height = view.getUint16(offset + 2, true);
+  const width = view.getUint16(offset, false);
+  const height = view.getUint16(offset + 2, false);
   offset += 4;
 
   const frames: CmrFrame[] = [];
   while (offset + RECORD_HEADER_BYTES <= bytes.byteLength) {
-    const tMs = view.getUint32(offset, true);
-    const length = view.getUint32(offset + 4, true);
+    const tMs = view.getUint32(offset, false);
+    const length = view.getUint32(offset + 4, false);
     offset += RECORD_HEADER_BYTES;
     if (offset + length > bytes.byteLength) break;
     frames.push({ tMs, jpeg: new Uint8Array(bytes, offset, length) });

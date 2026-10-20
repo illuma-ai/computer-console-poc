@@ -36,6 +36,30 @@ describe("parseSegment", () => {
     expect(segment.frames[0]!.jpeg[0]).toBe(0xff);
   });
 
+  it("decodes the byte-exact layout the recorder writes: big-endian, one-byte name length", () => {
+    // Header for 1280x800 (`CMR1`, length 14, `jpeg-frames-v1`, 0x0500 x 0x0320), then one record at t=0 of 3 bytes.
+    const bytes = new Uint8Array([
+      0x43, 0x4d, 0x52, 0x31, 0x0e, 0x6a, 0x70, 0x65, 0x67, 0x2d, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x73, 0x2d, 0x76, 0x31,
+      0x05, 0x00, 0x03, 0x20,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xff, 0xd8, 0xff,
+    ]);
+    const segment = parseSegment(bytes.buffer);
+    expect(segment.format).toBe("jpeg-frames-v1");
+    expect(segment.width).toBe(1280);
+    expect(segment.height).toBe(800);
+    expect(segment.frames).toHaveLength(1);
+    expect(segment.frames[0]!.tMs).toBe(0);
+    expect([...segment.frames[0]!.jpeg]).toEqual([0xff, 0xd8, 0xff]);
+  });
+
+  it("writes the same header bytes as the recorder's example", () => {
+    const header = new Uint8Array(encodeSegment([])).slice(0, 23);
+    expect([...header]).toEqual([
+      0x43, 0x4d, 0x52, 0x31, 0x0e, 0x6a, 0x70, 0x65, 0x67, 0x2d, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x73, 0x2d, 0x76, 0x31,
+      0x05, 0x00, 0x03, 0x20,
+    ]);
+  });
+
   it("reads a segment with no frames", () => {
     expect(parseSegment(encodeSegment([])).frames).toEqual([]);
   });
