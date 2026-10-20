@@ -19,4 +19,4 @@ The console needs a run API to talk to; see `docs/CONSOLE.md` (settings, screens
 
 ## Development
 Changes are made on branches and merged through pull requests; CI runs the gate on every pull
-request. See `CLAUDE.md` for the rules.
+request. See `CLAUDE.md` for the rules a change must follow.
