@@ -155,3 +155,77 @@
   margin: 0;
   color: var(--cv-error);
 }
+
+.cv-replay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cv-gap);
+  min-width: 0;
+}
+
+.cv-stage {
+  position: relative;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--cv-border);
+  border-radius: var(--cv-radius);
+  background: #000;
+  color: #fff;
+}
+
+.cv-frame {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.cv-status {
+  margin: 0;
+  padding: var(--cv-gap);
+  color: var(--cv-muted);
+}
+
+.cv-stage .cv-status {
+  color: #fff;
+}
+
+.cv-scrub {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.cv-clock {
+  color: var(--cv-muted);
+  font-family: var(--cv-font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cv-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--cv-border);
+}
+
+.cv-gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--cv-muted);
+  border-radius: 3px;
+}
+
+.cv-gaps {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--cv-muted);
+  font-size: 12px;
+}

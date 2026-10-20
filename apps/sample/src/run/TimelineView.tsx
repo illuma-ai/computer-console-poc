@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ToneBadge } from "../components/StatusBadge";
 import type { StateTone } from "../components/StatusBadge";
@@ -14,6 +14,8 @@ export interface TimelineProps {
   readonly entries: readonly TimelineEntry[];
   /** The final reply, once the run has completed. */
   readonly result: string | null;
+  /** Asks the replay to seek to a row's event. Without it, rows have no replay action. */
+  readonly onSeek?: (seq: number) => void;
 }
 
 /** The label each notice type is shown under. A type the sample does not name is shown as an event. */
@@ -46,12 +48,12 @@ export function noticeLabel(type: string): string {
 }
 
 /** The timeline, in the order the events arrived. */
-export function Timeline({ entries, result }: TimelineProps): ReactElement {
+export function Timeline({ entries, result, onSeek }: TimelineProps): ReactElement {
   return (
     <div className="flex flex-col gap-3">
       <ol aria-label="Timeline" role="log" className="flex flex-col gap-2 text-sm">
         {entries.map((entry) => (
-          <TimelineRow key={entry.key} entry={entry} />
+          <TimelineRow key={entry.key} entry={entry} onSeek={onSeek} />
         ))}
       </ol>
       {result !== null ? (
@@ -64,31 +66,69 @@ export function Timeline({ entries, result }: TimelineProps): ReactElement {
   );
 }
 
-function TimelineRow({ entry }: { readonly entry: TimelineEntry }): ReactElement {
+/** The replay action of a row. Shown on hover or focus, so a long timeline stays quiet. */
+function SeekButton({ entry, onSeek }: { readonly entry: TimelineEntry; readonly onSeek: (seq: number) => void }): ReactElement {
+  return (
+    <button
+      type="button"
+      className="ml-auto shrink-0 text-xs text-muted-foreground opacity-0 underline-offset-2 hover:underline focus-visible:opacity-100 group-hover:opacity-100"
+      aria-label={`Replay from ${rowName(entry)}`}
+      onClick={() => onSeek(entry.seq)}
+    >
+      Replay
+    </button>
+  );
+}
+
+/** The words a row is known by to a screen reader: the call's title, the notice's text, or the kind. */
+function rowName(entry: TimelineEntry): string {
   switch (entry.kind) {
     case "message":
-      return <li data-kind="message" className="whitespace-pre-wrap leading-relaxed">{entry.text}</li>;
+      return "message";
+    case "tool":
+      return entry.title;
+    case "plan":
+      return "plan";
+    case "notice":
+      return entry.text;
+  }
+}
+
+function TimelineRow({ entry, onSeek }: { readonly entry: TimelineEntry; readonly onSeek?: (seq: number) => void }): ReactElement {
+  const seek = onSeek ? <SeekButton entry={entry} onSeek={onSeek} /> : null;
+  switch (entry.kind) {
+    case "message":
+      return (
+        <li data-kind="message" className="group flex gap-2 whitespace-pre-wrap leading-relaxed">
+          <span className="min-w-0">{entry.text}</span>
+          {seek}
+        </li>
+      );
     case "tool":
       return (
-        <li data-kind="tool" className="flex items-center gap-2 text-xs text-muted-foreground">
+        <li data-kind="tool" className="group flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-mono">tool</span>
           <span className="text-foreground">{entry.title}</span>
           {entry.status ? <span>{entry.status}</span> : null}
+          {seek}
         </li>
       );
     case "plan":
       return (
-        <li data-kind="plan" className="text-xs text-muted-foreground">
-          Plan: {entry.steps} {entry.steps === 1 ? "step" : "steps"}
+        <li data-kind="plan" className="group flex items-center gap-2 text-xs text-muted-foreground">
+          <span>
+            Plan: {entry.steps} {entry.steps === 1 ? "step" : "steps"}
+          </span>
+          {seek}
         </li>
       );
     case "notice":
-      return <NoticeRow notice={entry} />;
+      return <NoticeRow notice={entry} seek={seek} />;
   }
 }
 
 /** A notice's row. A blocked run gets a banner: the reason is the first thing read. */
-function NoticeRow({ notice }: { readonly notice: NoticeEntry }): ReactElement {
+function NoticeRow({ notice, seek }: { readonly notice: NoticeEntry; readonly seek: ReactNode }): ReactElement {
   if (notice.type === "run.blocked") {
     return (
       <li data-kind="notice" data-type={notice.type} className="list-none">
@@ -100,10 +140,11 @@ function NoticeRow({ notice }: { readonly notice: NoticeEntry }): ReactElement {
     );
   }
   return (
-    <li data-kind="notice" data-type={notice.type} className="flex flex-wrap items-center gap-2">
+    <li data-kind="notice" data-type={notice.type} className="group flex flex-wrap items-center gap-2">
       <ToneBadge tone={toneOf(notice.tone)}>{noticeLabel(notice.type)}</ToneBadge>
       <span>{notice.text}</span>
       {notice.detail ? <span className="text-xs text-muted-foreground">{notice.detail}</span> : null}
+      {seek}
     </li>
   );
 }

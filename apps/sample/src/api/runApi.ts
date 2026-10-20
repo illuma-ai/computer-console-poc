@@ -75,6 +75,8 @@ export interface RunApi {
   release(runId: string, leaseId: string, done: boolean): Promise<unknown>;
   view(runId: string): Promise<ViewJson>;
   artifacts(runId: string): Promise<readonly ArtifactJson[]>;
+  /** The recording's manifest, as the dev server's mount addresses it (`GET /v1/runs/{id}/recording`). */
+  recordingUrl(runId: string): string;
 }
 
 /** Options for {@link createRunApi}. */
@@ -125,6 +127,7 @@ export function createRunApi(options: RunApiOptions = {}): RunApi {
       const body = await call<{ artifacts: ArtifactJson[] }>("GET", `${at(runId)}/artifacts`);
       return body.artifacts;
     },
+    recordingUrl: (runId) => `${base}${at(runId)}/recording`,
   };
 }
 

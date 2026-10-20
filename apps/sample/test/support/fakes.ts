@@ -109,6 +109,7 @@ export function fakeRunApi(overrides: Partial<RunApi> = {}): RunApi {
     release: vi.fn(async () => ({})),
     view: vi.fn(async () => viewJson()),
     artifacts: vi.fn(async () => []),
+    recordingUrl: vi.fn((runId: string) => `/api/runs/${runId}/recording`),
     ...overrides,
   };
 }
