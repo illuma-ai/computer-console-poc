@@ -35,10 +35,13 @@ export interface AgentForm {
   readonly timeoutS: string;
   readonly maxWaitS: string;
   readonly takeoverAllowed: boolean;
-  /** Seconds a computer may sit idle before it is paused, as typed. 0 means never. */
-  readonly idlePauseS: string;
-  /** Whether a person's answer resumes a paused computer. */
-  readonly resumeOnAnswer: boolean;
+  /**
+   * Seconds a computer may sit idle before it is paused, as typed. 0 means never. `null` when neither the saved
+   * definition nor the person set it: the write then leaves it out, so the service keeps its own default.
+   */
+  readonly idlePauseS: string | null;
+  /** Whether a person's answer resumes a paused computer. `null` as for `idlePauseS`. */
+  readonly resumeOnAnswer: boolean | null;
   /** Comma-separated channel names, e.g. `api, email`. */
   readonly allowedChannels: string;
   /** A JSON array of argv arrays. */
@@ -77,8 +80,8 @@ export const BLANK_FORM: AgentForm = {
   timeoutS: "3600",
   maxWaitS: "900",
   takeoverAllowed: false,
-  idlePauseS: "0",
-  resumeOnAnswer: false,
+  idlePauseS: null,
+  resumeOnAnswer: null,
   allowedChannels: "api",
   setupCommands: "[]",
   readyCheck: "",
@@ -124,8 +127,8 @@ export function formOf(agent: AgentJson): AgentForm {
     timeoutS: String(agent.computer.timeout_s),
     maxWaitS: String(agent.max_wait_s),
     takeoverAllowed: agent.takeover_allowed,
-    idlePauseS: String(agent.idle_pause_s ?? 0),
-    resumeOnAnswer: agent.resume_on_answer ?? false,
+    idlePauseS: agent.idle_pause_s === undefined ? null : String(agent.idle_pause_s),
+    resumeOnAnswer: agent.resume_on_answer ?? null,
     allowedChannels: agent.allowed_channels.join(", "),
     setupCommands: JSON.stringify(agent.setup_commands),
     readyCheck: agent.ready_check === null ? "" : JSON.stringify(agent.ready_check),
@@ -326,9 +329,11 @@ export function validateAgentForm(form: AgentForm, includeServers: boolean): For
   if (maxWait === null || maxWait < LIMITS.maxWaitMin) {
     errors.maxWaitS = `Use a whole number of at least ${LIMITS.maxWaitMin}`;
   }
-  const idlePause = integerOf(form.idlePauseS);
-  if (idlePause === null || idlePause < LIMITS.idlePauseMin) {
-    errors.idlePauseS = "Use a whole number of seconds, 0 for never";
+  if (form.idlePauseS !== null) {
+    const idlePause = integerOf(form.idlePauseS);
+    if (idlePause === null || idlePause < LIMITS.idlePauseMin) {
+      errors.idlePauseS = "Use a whole number of seconds, 0 for never";
+    }
   }
   if (channelsOf(form.allowedChannels).length === 0) errors.allowedChannels = "Name at least one channel";
   try {
@@ -366,7 +371,8 @@ function serverProblemOf(servers: readonly ServerDraft[], includeServers: boolea
 /**
  * The request body for a create or an update. The servers are included only when `includeServers` is set. A
  * read shows env names without values, so an untouched list is not sent back (it would be refused for missing
- * values). A create always includes them.
+ * values). A create always includes them. The idle settings are included only when they are set, so a service
+ * that does not know them yet still accepts the write.
  *
  * @param form The form as typed.
  * @param includeServers Whether the servers are part of this write.
@@ -392,8 +398,8 @@ export function bodyOf(form: AgentForm, includeServers: boolean): Partial<AgentW
     },
     max_wait_s: Number(form.maxWaitS),
     takeover_allowed: form.takeoverAllowed,
-    idle_pause_s: Number(form.idlePauseS),
-    resume_on_answer: form.resumeOnAnswer,
+    ...(form.idlePauseS !== null ? { idle_pause_s: Number(form.idlePauseS) } : {}),
+    ...(form.resumeOnAnswer !== null ? { resume_on_answer: form.resumeOnAnswer } : {}),
     allowed_channels: channelsOf(form.allowedChannels),
     setup_commands: commandsOf(form.setupCommands),
     ready_check: form.readyCheck.trim() === "" ? null : argvOf(form.readyCheck),

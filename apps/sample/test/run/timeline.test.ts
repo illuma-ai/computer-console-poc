@@ -233,24 +233,67 @@ describe("input answers and idle notices", () => {
     expires_at: "2026-10-19T11:00:00Z",
   };
 
-  it("names the fields of an accepted input request, and says a secret was provided without its value", () => {
+  it("names the fields of an accepted input request, and whether each was provided", () => {
     const waiting = fold([event(1, "run.waiting_input", { request: inputRequest })]);
     expect(waiting.openRequests.map((item) => item.id)).toEqual(["req-input"]);
     const answered = fold(
-      [event(2, "request.answered", { request_id: "req-input", answer: { action: "accept", values: { account: "tester", code: "424242" } } })],
+      [
+        event(2, "request.answered", {
+          request_id: "req-input",
+          action: "accept",
+          fields: [
+            { name: "account", provided: true },
+            { name: "code", provided: true },
+          ],
+        }),
+      ],
       waiting,
     );
     expect(answered.openRequests).toEqual([]);
     expect(answered.status).toBe("running");
-    expect(notices(answered).at(-1)?.text).toBe("Answered: account, code (provided)");
+    expect(notices(answered).at(-1)?.text).toBe("Answered: account (provided), code (provided)");
+  });
+
+  it("marks an optional field that was left empty as not provided", () => {
+    const waiting = fold([event(1, "run.waiting_input", { request: inputRequest })]);
+    const answered = fold(
+      [
+        event(2, "request.answered", {
+          request_id: "req-input",
+          action: "accept",
+          fields: [
+            { name: "account", provided: true },
+            { name: "code", provided: false },
+          ],
+        }),
+      ],
+      waiting,
+    );
+    expect(notices(answered).at(-1)?.text).toBe("Answered: account (provided), code (not provided)");
+  });
+
+  it("never reads a value, even if one is sent beside a field's name", () => {
+    const waiting = fold([event(1, "run.waiting_input", { request: inputRequest })]);
+    const answered = fold(
+      [
+        event(2, "request.answered", {
+          request_id: "req-input",
+          action: "accept",
+          fields: [{ name: "code", provided: true, value: "424242" }],
+          answer: { action: "accept", values: { code: "424242" } },
+        }),
+      ],
+      waiting,
+    );
+    expect(notices(answered).at(-1)?.text).toBe("Answered: code (provided)");
     expect(JSON.stringify(answered)).not.toContain("424242");
   });
 
   it("shows a declined or cancelled input request as such", () => {
     const waiting = fold([event(1, "run.waiting_input", { request: inputRequest })]);
-    const declined = fold([event(2, "request.answered", { request_id: "req-input", answer: { action: "decline" } })], waiting);
+    const declined = fold([event(2, "request.answered", { request_id: "req-input", action: "decline" })], waiting);
     expect(notices(declined).at(-1)?.text).toBe("Declined");
-    const cancelled = fold([event(3, "request.answered", { request_id: "req-input", answer: { action: "cancel" } })], waiting);
+    const cancelled = fold([event(3, "request.answered", { request_id: "req-input", action: "cancel" })], waiting);
     expect(notices(cancelled).at(-1)?.text).toBe("Cancelled");
   });
 

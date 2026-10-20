@@ -254,8 +254,10 @@ export interface AgentWrite {
   readonly setup_commands: readonly (readonly string[])[];
   readonly ready_check: readonly string[] | null;
   readonly allowed_channels: readonly string[];
-  readonly idle_pause_s: number;
-  readonly resume_on_answer: boolean;
+  /** Sent only when the person set it, or the saved definition had it. A service without the field accepts the write. */
+  readonly idle_pause_s?: number;
+  /** Sent only when set, as `idle_pause_s`. */
+  readonly resume_on_answer?: boolean;
 }
 
 /** One page of `GET /v1/agents`. `next_cursor` is null on the last page. */

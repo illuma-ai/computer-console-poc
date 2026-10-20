@@ -48,6 +48,10 @@ describe("validateAgentForm", () => {
     expect(validateAgentForm(validForm({ maxWaitS: "1" }), false).maxWaitS).toBeUndefined();
   });
 
+  it("does not check the idle pause while it is unset", () => {
+    expect(validateAgentForm(BLANK_FORM, false).idlePauseS).toBeUndefined();
+  });
+
   it("takes whole seconds for the idle pause, where 0 means never", () => {
     expect(validateAgentForm(validForm({ idlePauseS: "0" }), false).idlePauseS).toBeUndefined();
     expect(validateAgentForm(validForm({ idlePauseS: "900" }), false).idlePauseS).toBeUndefined();
@@ -159,12 +163,22 @@ describe("the request body", () => {
     expect(bodyOf(form, true).mcp_servers?.[0]).not.toHaveProperty("tools");
   });
 
-  it("sends the idle settings, the pause in seconds and the resume flag", () => {
+  it("sends the idle settings once they are set, the pause in seconds and the resume flag", () => {
     expect(bodyOf(validForm({ idlePauseS: "600", resumeOnAnswer: true }), false)).toMatchObject({
       idle_pause_s: 600,
       resume_on_answer: true,
     });
-    expect(bodyOf(validForm(), false)).toMatchObject({ idle_pause_s: 0, resume_on_answer: false });
+    expect(bodyOf(validForm({ idlePauseS: "0", resumeOnAnswer: false }), false)).toMatchObject({
+      idle_pause_s: 0,
+      resume_on_answer: false,
+    });
+  });
+
+  it("leaves the idle settings out while they are unset, so a service without them accepts the write", () => {
+    const body = bodyOf(validForm(), true);
+    expect(body).not.toHaveProperty("idle_pause_s");
+    expect(body).not.toHaveProperty("resume_on_answer");
+    expect(bodyOf(validForm({ idlePauseS: "600" }), false)).not.toHaveProperty("resume_on_answer");
   });
 
   it("carries the computer profile, the numbers and the lists in the service's shape", () => {
@@ -191,7 +205,14 @@ describe("a saved agent", () => {
       idlePauseS: "300",
       resumeOnAnswer: true,
     });
-    expect(formOf(agentJson())).toMatchObject({ idlePauseS: "0", resumeOnAnswer: false });
+    expect(formOf(agentJson())).toMatchObject({ idlePauseS: null, resumeOnAnswer: null });
+  });
+
+  it("re-saves without the idle settings when the saved agent did not have them", () => {
+    const body = bodyOf(formOf(agentJson({ name: "Renamed" })), false);
+    expect(body).toMatchObject({ name: "Renamed" });
+    expect(body).not.toHaveProperty("idle_pause_s");
+    expect(body).not.toHaveProperty("resume_on_answer");
   });
 
   it("shows env names with no values, so a re-saved list needs the values again", () => {

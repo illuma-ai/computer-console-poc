@@ -14,6 +14,12 @@ import { bodyOf, LIMITS, AgentFormError, RUNTIMES, serversSignature, validateAge
 import type { AgentForm, FormErrors, FormField } from "./agentForm";
 import { ToolsEditor } from "./ToolsEditor";
 
+/** The text beside the resume switch. Unset, the write leaves the setting to the service. */
+function resumeText(resumeOnAnswer: boolean | null): string {
+  if (resumeOnAnswer === null) return "Service default";
+  return resumeOnAnswer ? "On" : "Off";
+}
+
 /** Props of {@link AgentSheet}. */
 export interface AgentSheetProps {
   readonly mode: "create" | "edit";
@@ -30,7 +36,8 @@ export interface AgentSheetProps {
 /**
  * The create and edit sheet for an agent. Validation runs on the first submit and then as the person types. A
  * write sends the MCP servers only when they were created or changed, because a read shows env names without
- * values and an untouched list cannot be sent back.
+ * values and an untouched list cannot be sent back. The idle settings are sent only once the person sets them or
+ * the saved agent had them.
  */
 export function AgentSheet({ mode, agent, initial, api, onClose, onSaved }: AgentSheetProps): ReactElement {
   const [form, setForm] = useState<AgentForm>(initial);
@@ -171,15 +178,15 @@ export function AgentSheet({ mode, agent, initial, api, onClose, onSaved }: Agen
             <Field label="Resume on answer">
               {({ id }) => (
                 <div className="flex items-center gap-2">
-                  <Switch id={id} checked={form.resumeOnAnswer} onCheckedChange={(checked) => update({ resumeOnAnswer: checked })} />
-                  <span className="text-sm text-muted-foreground">{form.resumeOnAnswer ? "On" : "Off"}</span>
+                  <Switch id={id} checked={form.resumeOnAnswer ?? false} onCheckedChange={(checked) => update({ resumeOnAnswer: checked })} />
+                  <span className="text-sm text-muted-foreground">{resumeText(form.resumeOnAnswer)}</span>
                 </div>
               )}
             </Field>
           </div>
           <Field label="Pause after idle (s)" error={fieldError("idlePauseS")} hint="0 never pauses">
             {({ id, describedBy, invalid }) => (
-              <Input id={id} inputMode="numeric" value={form.idlePauseS} aria-describedby={describedBy} aria-invalid={invalid || undefined} onChange={(event) => update({ idlePauseS: event.target.value })} />
+              <Input id={id} inputMode="numeric" value={form.idlePauseS ?? ""} placeholder="Service default" aria-describedby={describedBy} aria-invalid={invalid || undefined} onChange={(event) => update({ idlePauseS: event.target.value })} />
             )}
           </Field>
           <Field label="Setup commands" error={fieldError("setupCommands")} hint="A JSON list of commands, each a list of arguments">

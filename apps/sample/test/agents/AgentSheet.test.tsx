@@ -50,6 +50,18 @@ describe("AgentSheet: create", () => {
     });
   });
 
+  it("leaves the idle settings out of the create until the person sets them", async () => {
+    const api = fakeAgentsApi();
+    renderCreate(api);
+    expect(screen.getByText("Service default")).toBeTruthy();
+    await userEvent.type(screen.getByLabelText("Name"), "Desk");
+    await userEvent.type(screen.getByLabelText("Template"), "cm-desktop-agent");
+    await userEvent.click(screen.getByRole("button", { name: "Create agent" }));
+    await waitFor(() => expect(api.createAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.createAgent)).not.toHaveProperty("idle_pause_s");
+    expect(bodyOfCall(api.createAgent)).not.toHaveProperty("resume_on_answer");
+  });
+
   it("sends the listing mode the person picks for a server", async () => {
     const api = fakeAgentsApi();
     renderCreate(api);
@@ -146,6 +158,19 @@ describe("AgentSheet: edit", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(api.updateAgent).toHaveBeenCalled());
     expect(bodyOfCall(api.updateAgent, 1)).toMatchObject({ idle_pause_s: 0, resume_on_answer: true });
+  });
+
+  it("saves an agent that had no idle settings without them, until the person sets one", async () => {
+    const api = fakeAgentsApi();
+    const plain = agentJson();
+    render(<AgentSheet mode="edit" agent={plain} initial={formOf(plain)} api={api} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect((screen.getByLabelText("Pause after idle (s)") as HTMLInputElement).value).toBe("");
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Renamed");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api.updateAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.updateAgent, 1)).not.toHaveProperty("idle_pause_s");
+    expect(bodyOfCall(api.updateAgent, 1)).not.toHaveProperty("resume_on_answer");
   });
 
   it("disables an enabled agent and reports the agent it got back", async () => {
