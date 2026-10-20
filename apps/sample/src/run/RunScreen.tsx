@@ -10,18 +10,22 @@ import { RequestCard } from "../cards/RequestCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { failureText } from "../api/runApi";
 import type { AnswerBody, RunApi } from "../api/runApi";
-import type { ArtifactJson, RunRequest, ViewJson } from "../api/types";
+import type { AgentsApi } from "../api/agentsApi";
+import type { AgentJson, ArtifactJson, RunRequest, ViewJson } from "../api/types";
 import { TERMINAL_RUN_STATUSES } from "../api/types";
 import { useRunStream } from "./useRunStream";
 import { ComputerPane } from "./ComputerPane";
 import { Timeline } from "./TimelineView";
 import { ArtifactsList } from "./ArtifactsList";
 import { withLinks } from "./timeline";
+import { agentNameIndex } from "../runs/runList";
 
 /** Props of {@link RunScreen}. */
 export interface RunScreenProps {
   readonly runId: string;
   readonly api: RunApi;
+  /** The agent registry, for the agent's name in the header. */
+  readonly agents: AgentsApi;
   readonly transport: TransportChoice;
   readonly viewerBaseUrl: string;
 }
@@ -40,8 +44,9 @@ type Tab = "timeline" | "artifacts";
  * One run: the open requests pinned at the top, the timeline (or the artifacts), the steer and cancel actions,
  * and the computer beside them. The screen follows the run's event stream from the start.
  */
-export function RunScreen({ runId, api, transport, viewerBaseUrl }: RunScreenProps): ReactElement {
+export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunScreenProps): ReactElement {
   const { state, snapshot, streamError } = useRunStream(runId, api);
+  const [agentList, setAgentList] = useState<readonly AgentJson[]>([]);
   const [held, setHeld] = useState<HeldLease | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -70,6 +75,20 @@ export function RunScreen({ runId, api, transport, viewerBaseUrl }: RunScreenPro
       active = false;
     };
   }, [api, runId, artifactCount, ended]);
+
+  // The agent's name is read once. A failed read leaves the header to show the agent's id.
+  useEffect(() => {
+    let current = true;
+    agents
+      .listAgents()
+      .then((list) => {
+        if (current) setAgentList(list);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [agents]);
 
   // A take-over ends when its request is answered, expires or is released elsewhere. The viewer goes with it.
   useEffect(() => {
@@ -130,7 +149,11 @@ export function RunScreen({ runId, api, transport, viewerBaseUrl }: RunScreenPro
           ) : (
             <StatusBadge status={status} />
           )}
-          {snapshot ? <span className="text-xs text-muted-foreground">Agent {snapshot.agent_id}</span> : null}
+          {snapshot ? (
+            <span className="text-xs text-muted-foreground" title={snapshot.agent_id}>
+              {agentNameIndex(agentList).get(snapshot.agent_id) ?? snapshot.agent_id}
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" size="sm" disabled={ended || busy} onClick={() => void act(() => api.cancel(runId))}>

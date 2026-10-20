@@ -85,6 +85,7 @@ export function App({ api, agentsApi, storage, transport, viewerBaseUrl }: AppPr
           key={route.runId}
           runId={route.runId}
           api={api}
+          agents={agentsApi}
           transport={transport}
           viewerBaseUrl={viewerBaseUrl}
         />

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RunScreen } from "../../src/run/RunScreen";
-import { event, fakeRunApi, openStream, progress, runView, streamOf } from "../support/fakes";
+import { agentJson, event, fakeAgentsApi, fakeRunApi, openStream, progress, runView, streamOf } from "../support/fakes";
 import type { RunRequest } from "../../src/api/types";
 
 // The viewer is mocked at the module boundary: the test checks which session the pane asks for, not the viewer.
@@ -44,7 +44,7 @@ describe("RunScreen", () => {
           event(3, "run.completed", { result: "Done" }),
         ]),
     });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
 
     expect(await screen.findByRole("region", { name: "Result" })).toBeTruthy();
     expect(screen.getByText("Hello")).toBeTruthy();
@@ -58,7 +58,7 @@ describe("RunScreen", () => {
     const api = fakeRunApi({
       streamEvents: () => streamOf([event(1, "run.blocked", { reason: "The host is not on the egress list" })]),
     });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     const banner = await screen.findByRole("alert");
     expect(within(banner).getByText("The host is not on the egress list")).toBeTruthy();
     expect(screen.getByText(/The computer has ended/)).toBeTruthy();
@@ -68,7 +68,7 @@ describe("RunScreen", () => {
     const api = fakeRunApi({
       streamEvents: () => streamOf([event(1, "run.waiting_input", { request: approval })]),
     });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     await userEvent.click(await screen.findByRole("button", { name: "Allow once" }));
     await waitFor(() => expect(api.answer).toHaveBeenCalledWith("run-1", "req-approval", { option_id: "opt-allow" }));
   });
@@ -77,7 +77,7 @@ describe("RunScreen", () => {
     const api = fakeRunApi({
       streamEvents: () => streamOf([event(1, "run.waiting_input", { request: takeover })]),
     });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Take control" }));
     await waitFor(() => expect(api.lease).toHaveBeenCalledWith("run-1", "req-takeover"));
@@ -90,7 +90,7 @@ describe("RunScreen", () => {
 
   it("opens the computer view-only while the run is live", async () => {
     const api = fakeRunApi({ streamEvents: () => openStream() });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     await waitFor(() => expect(api.view).toHaveBeenCalledWith("run-1"));
     expect(await screen.findByTestId("viewer")).toBeTruthy();
     expect(screen.getByTestId("viewer").getAttribute("data-mode")).toBe("view");
@@ -98,14 +98,14 @@ describe("RunScreen", () => {
 
   it("cancels a live run", async () => {
     const api = fakeRunApi({ streamEvents: () => streamOf([event(1, "run.started", {})]) });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     await userEvent.click(await screen.findByRole("button", { name: "Cancel run" }));
     await waitFor(() => expect(api.cancel).toHaveBeenCalledWith("run-1"));
   });
 
   it("sends a steer message while the run is live", async () => {
     const api = fakeRunApi({ streamEvents: () => streamOf([event(1, "run.started", {})]) });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     await userEvent.type(await screen.findByLabelText("Steer message"), "focus the form");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(api.steer).toHaveBeenCalledWith("run-1", "focus the form"));
@@ -116,7 +116,7 @@ describe("RunScreen", () => {
       streamEvents: () => streamOf([event(1, "artifact.added", { id: "a1", name: "report.md", size: 2048 })]),
       artifacts: vi.fn(async () => [{ id: "a1", name: "report.md", size: 2048, sha256: "x", download_url: "https://example.test/a1" }]),
     });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     await userEvent.click(await screen.findByRole("tab", { name: /Artifacts/ }));
     const link = await screen.findByRole("link", { name: "Download report.md" });
     expect(link.getAttribute("href")).toBe("https://example.test/a1");
@@ -128,7 +128,7 @@ describe("RunScreen", () => {
       streamEvents: () =>
         streamOf([event(1, "run.waiting_input", { request: takeover }), event(2, "run.blocked", { reason: "egress" })]),
     });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Requests" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Take control" })).toBeNull();
@@ -136,7 +136,7 @@ describe("RunScreen", () => {
 
   it("keeps the run's requests above the tabs", async () => {
     const api = fakeRunApi({ streamEvents: () => streamOf([event(1, "run.waiting_input", { request: approval })]) });
-    render(<RunScreen runId="run-1" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     const requests = await screen.findByRole("region", { name: "Requests" });
     expect(requests.textContent).toContain("Run the installer?");
   });
@@ -145,7 +145,31 @@ describe("RunScreen", () => {
 describe("RunScreen run id", () => {
   it("shows the run id as the page heading", async () => {
     const api = fakeRunApi({ getRun: vi.fn(async () => runView({ id: "run-9" })), streamEvents: () => streamOf([]) });
-    render(<RunScreen runId="run-9" api={api} transport="auto" viewerBaseUrl="http://localhost" />);
+    render(<RunScreen runId="run-9" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
     expect(await screen.findByRole("heading", { name: "run-9" })).toBeTruthy();
+  });
+});
+
+describe("RunScreen agent", () => {
+  it("shows the agent's name in the header, with its id as the hover title", async () => {
+    const api = fakeRunApi({
+      getRun: vi.fn(async () => runView({ id: "run-1", agent_id: "agent-aa226f26" })),
+      streamEvents: () => streamOf([]),
+    });
+    const agents = fakeAgentsApi({
+      listAgents: vi.fn(async () => [agentJson({ id: "agent-aa226f26", name: "Desk agent" })]),
+    });
+    render(<RunScreen runId="run-1" api={api} agents={agents} transport="auto" viewerBaseUrl="http://localhost" />);
+    const name = await screen.findByText("Desk agent");
+    expect(name.getAttribute("title")).toBe("agent-aa226f26");
+  });
+
+  it("falls back to the agent's id when the agent is not in the list", async () => {
+    const api = fakeRunApi({
+      getRun: vi.fn(async () => runView({ id: "run-1", agent_id: "agent-aa226f26" })),
+      streamEvents: () => streamOf([]),
+    });
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
+    expect(await screen.findByText("agent-aa226f26")).toBeTruthy();
   });
 });
