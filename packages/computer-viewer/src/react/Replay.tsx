@@ -142,11 +142,9 @@ export function Replay({ manifestUrl, fetcher, seek }: ReplayProps): ReactElemen
     const segmentFrames = (index: number): Promise<CmrSegment> => {
       const existing = cache.current.get(index);
       if (existing) return existing.decoded;
-      const url = current.segments[index]!.url;
-      const decoded = loadSegment(fetcher, url).catch((err: unknown) => {
-        cache.current.delete(index);
-        throw err;
-      });
+      // A failed segment stays failed for this recording. The picture is checked on every tick, so a retry
+      // here would request a broken link many times a second; the operator reloads the replay to try again.
+      const decoded = loadSegment(fetcher, current.segments[index]!.url);
       cache.current.set(index, { decoded, urls: new Map() });
       return decoded;
     };

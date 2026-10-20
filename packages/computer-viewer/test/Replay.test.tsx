@@ -152,11 +152,17 @@ describe("Replay", () => {
 
   it("shows a segment that cannot be read, and keeps the rest of the replay", async () => {
     const bodies = fixtureBodies();
-    const fetcher = fixtureFetcher({ ...bodies, [SEGMENT_0_URL]: () => binary(new Uint8Array(8).buffer) }).fetcher;
+    const { fetcher, urls } = fixtureFetcher({ ...bodies, [SEGMENT_0_URL]: () => binary(new Uint8Array(8).buffer) });
     render(<Replay manifestUrl={MANIFEST_URL} fetcher={fetcher} seek={null} />);
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByText("A recording segment could not be read")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+
+    // A failed segment is not requested again for every move of the playhead.
+    fireEvent.change(screen.getByRole("slider", { name: "Replay position" }), { target: { value: "1000" } });
+    fireEvent.change(screen.getByRole("slider", { name: "Replay position" }), { target: { value: "2000" } });
+    await waitFor(() => expect(screen.getByText("0:02 / 1:00")).toBeTruthy());
+    expect(urls.filter((url) => url === SEGMENT_0_URL)).toHaveLength(1);
   });
 
   it("releases the object URLs of its frames when it is left", async () => {

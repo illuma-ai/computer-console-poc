@@ -29,8 +29,12 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
   options) or a question (its options and a text answer). Only requests still open are shown: once the run's status
   is completed, failed, cancelled or blocked, every request is closed. Below them, a Timeline (message replies as text,
   tool calls as compact rows, plans, and a row per kind of notice: checkpoint, computer replaced, tools,
-  reminder, blocked, failed and errors; a blocked run shows its reason in a banner) and an Artifacts tab with
-  signed download links. Steer sends a message to a live run. Cancel run ends it.
+  reminder, blocked, failed and errors; a blocked run shows its reason in a banner), an Artifacts tab with
+  signed download links, and a Replay tab. Steer sends a message to a live run. Cancel run ends it.
+  Each timeline row has a Replay action (it appears on hover or focus) that opens the Replay tab at that row's
+  event. The Replay tab plays the run's recording: pick Play, or seek with the scrubber, the keyboard or a row.
+  Pauses in the recording (a take-over, sensitive input) show as gaps with their reason. A run with no recording
+  says so. The viewer's Replay component is described in `docs/VIEWER.md`.
 - **Settings** (`#/settings`). The colour theme (system, light or dark; kept in this browser) and the endpoints
   the page uses (run API, agent registry, viewer origin and screen transport). The endpoints come from the build
   and the dev server, so they are shown, not edited.
@@ -207,14 +211,15 @@ From `web/`, `npm test -w @cm/sample` runs the sample's tests offline (jsdom, th
 
 - the API clients (run, agents, SSE parsing, failure text) and the token minting and proxy settings;
 - the stream follower, which reopens from the last sequence after a drop and never repeats an event;
-- the timeline reducer: cursor resume, message grouping, tool rows updated in place, one row per notice kind;
+- the timeline reducer: cursor resume, message grouping, tool rows updated in place, one row per notice kind, and
+  the replay action on each row (offered only when the host takes one);
 - the request cards per kind, and the typed input contract;
 - the agent form rules and the agent sheet and screen (validation, catalog insert, tools mode, the env-value rule
   on edit, refusal text);
 - the catalog loaders, against the shipped files and against bad entries;
 - the runs list (filtering, paging, refresh, the new-run dialog);
-- the run screen with the viewer mocked at the module boundary (take-over and lease, approval, cancel, steer,
-  artifacts, a block);
+- the run screen with the viewer and the replay mocked at the module boundary (take-over and lease, approval,
+  cancel, steer, artifacts, a block, a timeline row opening the replay at its event);
 - the settings, routes and theme.
 
 `npm test -w @cm/computer-viewer` runs the viewer package's tests. `npm test -w otp-page` runs the sign-in page's.
