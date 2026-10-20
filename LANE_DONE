@@ -1,8 +1,0 @@
-Lane complete: record and replay, phase 5 (replay in the viewer package and the console).
-
-Gate: npm ci --no-audit --no-fund && npm run typecheck && npm test && npm run build
-Result: exit 0 from a clean install. Typecheck clean; all test suites pass (computer-viewer 76,
-sample 187, plus the viewer and otp-page suites); build succeeds.
-
-Open items and assumptions are in LANE_NOTES.md (the .cmr byte layout and index shape are
-assumptions to confirm against computerd and the run service).
