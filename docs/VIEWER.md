@@ -84,7 +84,8 @@ import "@cm/computer-viewer/react/styles.css";
 The components are `ComputerViewer` (the whole viewer), and the parts it is made of: `Screen`,
 `Terminal` (process list and the selected process's live output), `Files` (folder listing and
 download, read-only) and `ControlBar` (mode, transport in use, Take control and Release). Use the
-parts when a host wants a different layout.
+parts when a host wants a different layout. `Replay` plays a recording of a run's screen; see
+"Replay" below.
 
 Framework-free: `createViewerClient(session, { fetch?, WebSocket?, reconnectDelayMs? })` from
 `@cm/computer-viewer`. It has `getSession()`, `listProcesses()`, `followProcess(pid, onEvent)`,
@@ -109,6 +110,73 @@ Take control needs a control session from the host, so the standalone page never
 The contract's `viewer_url` is the link for this page. Where the page is hosted is a deployment
 decision; the manager returns the link and does not serve the page.
 
+## Replay
+
+`Replay` plays a recording of a run's screen. It is read-only: it needs no computer and no view
+token, so it works after the computer has gone.
+
+```tsx
+import { Replay } from "@cm/computer-viewer/react";
+
+<Replay
+  manifestUrl="/api/runs/run-1/recording"  // GET /v1/runs/{id}/recording, as the host addresses it
+  fetcher={fetch}                           // loads the manifest, the index and every segment
+  seek={{ seq: 5 }}                         // or { ms: 4000 }; a new object seeks again
+/>
+```
+
+The fetcher is the host's. The package adds no credential, and it does not call the run API itself:
+the manifest URL is the host's, and each link the manifest gives is fetched through the same
+fetcher. Pass a stable function, because a new one reloads the recording.
+
+**The manifest** (`GET /v1/runs/{id}/recording`, read first) has `state`, `duration_ms` (the span's end:
+the clock starts at zero, the run's first start), `segments` (`[{ url, from_ms, to_ms, size }]`, in time
+order) and `pauses` (`[{ from_ms, to_ms, reason }]`, on the recording's clock). `width` and `height` are
+read when present. A `404` means the run has no recording.
+
+A segment's `url` is a link minted for that request. It is `null` when the store cannot sign links; then the
+recording cannot be played, and the replay says so.
+
+**The event index** (`GET /v1/runs/{id}/recording/index`, read second, at the manifest's URL with `/index`) is
+`{ events: [{ seq, type, offset_ms }], truncated }`: one line per run event, with no event data. `seq` seeks to
+the last indexed event at or before it. When the service cut the index (`truncated: true`), the replay says
+so, and an event after its last line seeks to that line. Without an index, or when it cannot be read, playback
+works and seeking by event goes to the start.
+
+**Segments** are fetched when the playhead reaches them, with the next one fetched ahead. Only the
+segments near the playhead stay in memory.
+
+**Segment format `jpeg-frames-v1`** (`.cmr`, version 1). All integers are big-endian. This is the
+layout the recorder in computerd writes; the viewer's test fixtures and an exact-bytes test are built from it.
+
+| Bytes | Field | Meaning |
+|---|---|---|
+| 4 | magic | `CMR1` |
+| 1 + n | format | a `u8` length n, then the n UTF-8 bytes of the name. Must be `jpeg-frames-v1` (n = 14); any other name is refused |
+| 4 | width, height | `u16` each |
+| 8 + len, repeated | records | `t_ms` (`u32`, from the segment's first frame), `len` (`u32`), then `len` bytes of JPEG |
+
+A 1280x800 header is `43 4d 52 31 0e 6a 70 65 67 2d 66 72 61 6d 65 73 2d 76 31 05 00 03 20`.
+
+A record cut short at the end of a segment is dropped; the complete frames before it play.
+
+**Playback.** The replay starts paused. Frames are written only when the picture changes, so each
+frame is shown until the next one starts, and the picture at a time is the last frame before it,
+which may sit in an earlier segment. The screen is one image, swapped as the playhead moves.
+
+- **Pauses.** A span with a pause (a person took control: reason `takeover`) shows its reason in
+  place of a picture, and the spans are listed below the scrubber. Any other reason reads as a plain pause. The screen is not recorded
+  during a pause, so the picture from before it is not carried over: after a pause, no picture
+  shows until the screen next changes.
+- **Speed** is 1x, 2x or 4x.
+- **Keyboard**, when the replay region has focus: Space or k plays and pauses; Left and Right move
+  5 s (Shift with either, 30 s); Home and End go to the start and the end. The scrubber and the
+  buttons are ordinary controls.
+- **No autoplay.** Nothing plays until the operator presses Play, and the replay has no audio.
+
+Frames are held in memory as object URLs. They are released when the replay is left or the
+recording changes.
+
 ## Security rules
 
 - The token lives in memory, in the `Authorization: Bearer` header of each request, and as the
@@ -121,6 +189,7 @@ decision; the manager returns the link and does not serve the page.
 - Error messages are fixed text (or the contract's message from the server). A network failure
   reports `network` with a fixed message, so the host name is not shown.
 - Every stream and screen closes at expiry, and no request is made after it.
+- The replay holds frames in memory only, as object URLs, and releases them when it is left.
 
 ## Mobile web view
 
@@ -143,6 +212,14 @@ Things still open or deliberately left out.
   the screen with `openScreen` after `closed`.
 - **Injection.** `createViewerClient` takes `fetch`, `WebSocket` and `reconnectDelayMs`. There is no
   `EventSource` option, because the SSE path is a fetch stream (it needs the header).
+- **Replay links.** A segment or index link must be fetchable from the page: a signed storage link
+  needs CORS for the page's origin, or the run service must serve the segments itself.
+- **Frame at resume.** After a pause the picture is unknown until the screen next changes. The
+  recorder should write a frame when a pause ends, so the picture shows straight away.
+- **Span and size names.** The service documents the manifest's content, not its field names: `duration_ms`,
+  `width`, `height` and `size`, and the index's `events` and `truncated`, are the names this viewer reads. Confirm
+  them against the run service before relying on them.
+- **Not in the replay.** Skipping static spans, audio, and speeds beyond 4x.
 
 ## Dependencies
 
@@ -155,6 +232,7 @@ Exact versions, no ranges (`web/package.json`, `web/packages/computer-viewer/pac
 | `typescript` | 7.0.2 | Compiler |
 | `vite`, `@vitejs/plugin-react` | 8.3.2, 6.1.2 | The standalone page |
 | `vitest`, `jsdom` | 5.0.3, 30.1.2 | Tests |
+| `@testing-library/react`, `@testing-library/dom`, `@testing-library/user-event` | 16.3.3, 10.4.2, 14.6.7 | Tests of the React components (the same pins as the sample app) |
 
 The peer range for React is `>=18.3.1 <19`, so a host can take a later 18.x patch.
 
@@ -169,6 +247,9 @@ npm test        # offline: fake fetch, fake WebSocket, noVNC double, jsdom
 npm run build
 npm run lint    # tsc with unused-code and return-path checks
 ```
+
+The replay's tests (`test/replay.test.ts`, `test/Replay.test.tsx`) run on fixture recordings that
+`test/replay-fixtures.ts` encodes from the layout above, so a change to the format fails them.
 
 Tests never reach the network. `packages/computer-viewer/test/setup.ts` replaces noVNC with a
 double, so no real canvas, ResizeObserver or server is needed.

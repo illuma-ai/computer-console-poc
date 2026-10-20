@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent, ReactElement } from "react";
-import type { TransportChoice } from "@cm/computer-viewer";
+import type { FetchLike, TransportChoice } from "@cm/computer-viewer";
+import { Replay } from "@cm/computer-viewer/react";
+import type { ReplaySeek } from "@cm/computer-viewer/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -39,7 +41,13 @@ interface HeldLease {
 }
 
 /** The views of the run's column. Details is shown only when the run has provenance. */
-type Tab = "timeline" | "artifacts" | "details";
+type Tab = "timeline" | "artifacts" | "details" | "replay";
+
+/**
+ * The fetcher the replay loads its manifest and segments with. It is a plain wrapper, because the browser's
+ * `fetch` must not be called unbound. The links the manifest gives are signed, so no credential is added here.
+ */
+const fetchRecording: FetchLike = (input, init) => globalThis.fetch(input, init);
 
 /**
  * One run: the open requests pinned at the top, the timeline (or the artifacts), the steer and cancel actions,
@@ -54,6 +62,7 @@ export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunS
   const [links, setLinks] = useState<readonly ArtifactJson[]>([]);
   const [tab, setTab] = useState<Tab>("timeline");
   const [steerText, setSteerText] = useState("");
+  const [replaySeek, setReplaySeek] = useState<ReplaySeek | null>(null);
 
   const status = state.status;
   const ended = TERMINAL_RUN_STATUSES.some((known) => known === status);
@@ -142,6 +151,12 @@ export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunS
   const requests = state.openRequests;
   const agentName = snapshot ? agentNameIndex(agentList).get(snapshot.agent_id) ?? null : null;
 
+  /** A timeline row's replay action: the replay tab opens at that row's event. */
+  function seekReplay(seq: number): void {
+    setReplaySeek({ seq });
+    setTab("replay");
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -200,9 +215,10 @@ export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunS
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="artifacts">Artifacts{artifactCount > 0 ? ` (${artifactCount})` : ""}</TabsTrigger>
               {provenance ? <TabsTrigger value="details">Details</TabsTrigger> : null}
+              <TabsTrigger value="replay">Replay</TabsTrigger>
             </TabsList>
             <TabsContent value="timeline" className="flex flex-col gap-4">
-              <Timeline entries={state.timeline} result={state.result} />
+              <Timeline entries={state.timeline} result={state.result} onSeek={seekReplay} />
               {canSteer ? (
                 <form aria-label="Steer the agent" className="flex gap-2" onSubmit={(event) => void steer(event)}>
                   <Input
@@ -226,6 +242,9 @@ export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunS
                 <ProvenanceView provenance={provenance} agentName={agentName} />
               </TabsContent>
             ) : null}
+            <TabsContent value="replay">
+              <Replay manifestUrl={api.recordingUrl(runId)} fetcher={fetchRecording} seek={replaySeek} />
+            </TabsContent>
           </Tabs>
         </div>
 

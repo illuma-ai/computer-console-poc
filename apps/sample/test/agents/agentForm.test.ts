@@ -7,6 +7,8 @@ import {
   BLANK_FORM,
   formFromTemplate,
   formOf,
+  recordingWith,
+  RECORDING_DEFAULT,
   removeServer,
   serversSignature,
   setEnvValue,
@@ -196,6 +198,52 @@ describe("the request body", () => {
 
   it("throws the first problem rather than sending an invalid form", () => {
     expect(() => bodyOf(BLANK_FORM, false)).toThrow("Name is required");
+  });
+});
+
+describe("the recording settings", () => {
+  const recorded = { mode: "on", required: false, fps: 1, retention_days: 14, pause_on_text: true } as const;
+
+  it("leaves out the recording object when nobody set it", () => {
+    expect(bodyOf(validForm(), false)).not.toHaveProperty("recording");
+  });
+
+  it("sends the whole recording object once the person changes one setting", () => {
+    const form = validForm({
+      recording: recordingWith(null, { mode: "on", fps: 1, retentionDays: "14", pauseOnText: true }),
+    });
+    expect(bodyOf(form, false)).toMatchObject({ recording: recorded });
+    expect(bodyOf(form, false).recording).toEqual(recorded);
+  });
+
+  it("starts a changed recording from the defaults, so the other keys are sent as they are", () => {
+    expect(recordingWith(null, { required: true })).toEqual({ ...RECORDING_DEFAULT, required: true });
+    expect(recordingWith(recordingWith(null, { mode: "on" }), { fps: 2 })).toEqual({ ...RECORDING_DEFAULT, mode: "on" });
+  });
+
+  it("sends the whole object a loaded definition had, even when nothing changed", () => {
+    const loaded = agentJson({ recording: { mode: "on", required: true, fps: 2, retention_days: 45, pause_on_text: false } });
+    expect(bodyOf(formOf(loaded), false).recording).toEqual({
+      mode: "on",
+      required: true,
+      fps: 2,
+      retention_days: 45,
+      pause_on_text: false,
+    });
+  });
+
+  it("reads a definition without recording as unset, not as off", () => {
+    expect(formOf(agentJson()).recording).toBeNull();
+  });
+
+  it("refuses a retention that is not a whole number of at least one, and accepts none", () => {
+    const retention = (text: string): string | undefined =>
+      validateAgentForm(validForm({ recording: recordingWith(null, { retentionDays: text }) }), false).recordingRetentionDays;
+    expect(retention("0")).toBe("Use a whole number of at least 1");
+    expect(retention("")).toBeTruthy();
+    expect(retention("2.5")).toBeTruthy();
+    expect(retention("1")).toBeUndefined();
+    expect(validateAgentForm(validForm(), false).recordingRetentionDays).toBeUndefined();
   });
 });
 

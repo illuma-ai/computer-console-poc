@@ -50,7 +50,7 @@ describe("AgentSheet: create", () => {
     });
   });
 
-  it("leaves the idle settings out of the create until the person sets them", async () => {
+  it("leaves the idle and recording settings out of the create until the person sets them", async () => {
     const api = fakeAgentsApi();
     renderCreate(api);
     expect(screen.getByText("Service default")).toBeTruthy();
@@ -60,6 +60,41 @@ describe("AgentSheet: create", () => {
     await waitFor(() => expect(api.createAgent).toHaveBeenCalled());
     expect(bodyOfCall(api.createAgent)).not.toHaveProperty("idle_pause_s");
     expect(bodyOfCall(api.createAgent)).not.toHaveProperty("resume_on_answer");
+    expect(bodyOfCall(api.createAgent)).not.toHaveProperty("recording");
+  });
+
+  it("shows the recording defaults: off, two frames a second, and 30 days", () => {
+    renderCreate(fakeAgentsApi());
+    expect(screen.getByRole("switch", { name: "Record the screen" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByLabelText("Frames a second") as HTMLSelectElement).value).toBe("2");
+    expect((screen.getByLabelText("Retention (days)") as HTMLInputElement).value).toBe("30");
+  });
+
+  it("sends the recording settings the person changes, and refuses a retention below one day", async () => {
+    const api = fakeAgentsApi();
+    renderCreate(api);
+    await userEvent.type(screen.getByLabelText("Name"), "Desk");
+    await userEvent.type(screen.getByLabelText("Template"), "cm-desktop-agent");
+    await userEvent.click(screen.getByRole("switch", { name: "Record the screen" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Pause on typed text" }));
+    await userEvent.selectOptions(screen.getByLabelText("Frames a second"), "1");
+    await userEvent.clear(screen.getByLabelText("Retention (days)"));
+    await userEvent.type(screen.getByLabelText("Retention (days)"), "0");
+    await userEvent.click(screen.getByRole("button", { name: "Create agent" }));
+    expect(screen.getByText("Use a whole number of at least 1")).toBeTruthy();
+    expect(api.createAgent).not.toHaveBeenCalled();
+
+    await userEvent.clear(screen.getByLabelText("Retention (days)"));
+    await userEvent.type(screen.getByLabelText("Retention (days)"), "14");
+    await userEvent.click(screen.getByRole("button", { name: "Create agent" }));
+    await waitFor(() => expect(api.createAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.createAgent)["recording"]).toEqual({
+      mode: "on",
+      required: false,
+      fps: 1,
+      retention_days: 14,
+      pause_on_text: true,
+    });
   });
 
   it("sends the listing mode the person picks for a server", async () => {
@@ -110,6 +145,33 @@ describe("AgentSheet: create", () => {
 describe("AgentSheet: edit", () => {
   const saved = agentJson({
     mcp_servers: [{ name: "api", command: "api-mcp", args: [], env: [{ name: "TOKEN" }], tools: null }],
+  });
+
+  it("sends no recording object for a definition that has none", async () => {
+    const api = fakeAgentsApi();
+    render(<AgentSheet mode="edit" agent={saved} initial={formOf(saved)} api={api} onClose={vi.fn()} onSaved={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api.updateAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.updateAgent, 1)).not.toHaveProperty("recording");
+  });
+
+  it("sends the whole recording object a definition has, and shows its settings as saved", async () => {
+    const api = fakeAgentsApi();
+    const recorded = agentJson({
+      recording: { mode: "on", required: false, fps: 1, retention_days: 30, pause_on_text: false },
+    });
+    render(<AgentSheet mode="edit" agent={recorded} initial={formOf(recorded)} api={api} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.getByRole("switch", { name: "Record the screen" }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByLabelText("Frames a second") as HTMLSelectElement).value).toBe("1");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api.updateAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.updateAgent, 1)["recording"]).toEqual({
+      mode: "on",
+      required: false,
+      fps: 1,
+      retention_days: 30,
+      pause_on_text: false,
+    });
   });
 
   it("sends no servers when the list is untouched, so the names-only read is not sent back", async () => {

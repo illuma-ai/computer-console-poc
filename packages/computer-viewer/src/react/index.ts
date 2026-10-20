@@ -12,3 +12,5 @@ export { Terminal } from "./Terminal";
 export type { TerminalProps } from "./Terminal";
 export { Files } from "./Files";
 export type { FilesProps } from "./Files";
+export { Replay } from "./Replay";
+export type { ReplayProps, ReplaySeek } from "./Replay";

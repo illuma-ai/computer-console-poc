@@ -12,6 +12,10 @@ vi.mock("@cm/computer-viewer/react", () => ({
       {onRelease ? <button type="button" onClick={onRelease}>Release viewer</button> : null}
     </div>
   ),
+  // The replay is checked for what it is asked: its manifest and the seek it was given.
+  Replay: ({ manifestUrl, seek }: { manifestUrl: string; seek: unknown }) => (
+    <div data-testid="replay" data-manifest={manifestUrl} data-seek={JSON.stringify(seek)} />
+  ),
 }));
 
 afterEach(() => cleanup());
@@ -62,6 +66,22 @@ describe("RunScreen", () => {
     const banner = await screen.findByRole("alert");
     expect(within(banner).getByText("The host is not on the egress list")).toBeTruthy();
     expect(screen.getByText(/The computer has ended/)).toBeTruthy();
+  });
+
+  it("opens the replay at the event of a timeline row", async () => {
+    const api = fakeRunApi({
+      streamEvents: () =>
+        streamOf([
+          event(1, "run.started", { computer: { runtime: "docker" } }),
+          progress(2, "tool", { tool_call_id: "t1", title: "Open page", status: "completed" }),
+        ]),
+    });
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Replay from Open page" }));
+    const replay = await screen.findByTestId("replay");
+    expect(replay.getAttribute("data-seek")).toBe('{"seq":2}');
+    expect(replay.getAttribute("data-manifest")).toBe("/api/runs/run-1/recording");
+    expect(api.recordingUrl).toHaveBeenCalledWith("run-1");
   });
 
   it("answers an approval with the option the person picks", async () => {
