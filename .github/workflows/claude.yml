@@ -9,9 +9,8 @@ name: Claude
 # - The model is pinned to Haiku 5.5 and each job has a turn cap.
 # - Authentication: the CLAUDE_CODE_OAUTH_TOKEN repository secret, created by the owner with
 #   `claude setup-token`.
-# - GitHub access: the job's own GITHUB_TOKEN (this repository only, the permissions below), not
-#   a GitHub App. GitHub starts no workflow from a push made with that token, so the last step
-#   starts CI on Claude's branch explicitly (workflow_dispatch is the documented exception).
+# - GitHub access: the Claude GitHub App, installed on this repository only, so Claude's pushes
+#   start CI like anyone else's.
 on:
   issue_comment:
     types: [created]
@@ -27,7 +26,7 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
-  actions: write
+  actions: read
 
 jobs:
   claude:
@@ -54,20 +53,7 @@ jobs:
         id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: >-
             --model claude-haiku-5-5
             --max-turns 80
             --allowedTools "Bash(npm *),Bash(npx *),Bash(git *),Bash(node *),Read,Edit,Write,Glob,Grep"
-      # Start CI on the branch Claude pushed (see the GitHub access note at the top).
-      - name: Start CI on Claude's branch
-        if: always() && steps.claude.outputs.branch_name != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ steps.claude.outputs.branch_name }}
-        run: |
-          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
-            gh workflow run ci.yml --ref "$BRANCH"
-          else
-            echo "No pushed branch named $BRANCH; nothing to check."
-          fi
