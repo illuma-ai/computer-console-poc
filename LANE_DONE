@@ -1,8 +1,0 @@
-Brief complete. Gate passed on lane/console-next:
-
-- `npm ci --no-audit --no-fund` — exit 0
-- `npm run typecheck` — exit 0
-- `npm test` — exit 0 (computer-viewer 38, viewer 5, sample 205, otp-page 6 tests passed)
-- `npm run build` — exit 0
-
-The service's input payload location and the `request.answered` value shape are assumptions; see LANE_NOTES.md.
