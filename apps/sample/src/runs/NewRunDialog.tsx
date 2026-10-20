@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent, ReactElement } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -54,17 +54,25 @@ export function NewRunDialog({
   storage,
   onStarted,
 }: NewRunDialogProps): ReactElement {
-  const [agentId, setAgentId] = useState<string>(agents[0]?.id ?? "");
-  const [prompt, setPrompt] = useState<string>(() => loadPrompts(storage)[agents[0]?.id ?? ""] ?? "");
+  // The agent the person picked. The select shows the first agent until they pick one, and so does the run:
+  // `agentId` is what is shown, so the form and the button always agree. The list may arrive after the dialog
+  // mounts, so an empty or unknown pick falls back to the first agent.
+  const [chosenAgentId, setChosenAgentId] = useState<string>("");
+  const agentId = agents.some((agent) => agent.id === chosenAgentId) ? chosenAgentId : (agents[0]?.id ?? "");
+  const [prompt, setPrompt] = useState<string>("");
   const [scenario, setScenario] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const reason = startBlockedReason(agentId, prompt, agents.length > 0);
 
+  // The prompt last used with the shown agent is offered again whenever that agent is shown.
+  useEffect(() => {
+    setPrompt(loadPrompts(storage)[agentId] ?? "");
+  }, [agentId, storage]);
+
   function chooseAgent(next: string): void {
-    setAgentId(next);
-    setPrompt(loadPrompts(storage)[next] ?? "");
+    setChosenAgentId(next);
   }
 
   function chooseScenario(id: string): void {

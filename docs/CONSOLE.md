@@ -19,11 +19,15 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
   under its field. "Disable agent" turns an enabled agent off.
 - **Runs** (`#/runs`). The runs, newest first: status, run id, agent, runtime, started and duration. A status
   filter asks the service for that status. The first page refreshes every five seconds (paused while the page is
-  hidden); "Load more" follows the service's cursor. "New run" opens a dialog: pick an agent, pick a scenario
-  (it fills the prompt) or write one, then Start run. The button says why it is off.
-- **Run** (`#/runs/{id}`). The run's event stream from the start, resumed with `Last-Event-ID` after a drop.
+  hidden); "Load more" follows the service's cursor. "New run" opens a dialog: pick an agent (the first enabled
+  agent is chosen to begin with), pick a scenario (it fills the prompt) or write one, then Start run. The button says
+  why it is off.
+- **Run** (`#/runs/{id}`). The run's event stream from the start, resumed with `Last-Event-ID` after a drop. The
+  header shows the run id, its status and the agent's name (the agent's id on hover, or the id when the agent is
+  not in the registry).
   Open requests are pinned at the top: a take-over (Take control, then Done or Can't do it), an approval (its
-  options) or a question (its options and a text answer). Below them, a Timeline (message replies as text,
+  options) or a question (its options and a text answer). Only requests still open are shown: once the run's status
+  is completed, failed, cancelled or blocked, every request is closed. Below them, a Timeline (message replies as text,
   tool calls as compact rows, plans, and a row per kind of notice: checkpoint, computer replaced, tools,
   reminder, blocked, failed and errors; a blocked run shows its reason in a banner) and an Artifacts tab with
   signed download links. Steer sends a message to a live run. Cancel run ends it.

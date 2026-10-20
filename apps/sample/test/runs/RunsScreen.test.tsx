@@ -115,6 +115,40 @@ describe("NewRunDialog", () => {
     expect((screen.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("starts on the agent the form shows when the agent list arrives after the dialog opened", async () => {
+    const api = fakeRunApi({ createRun: vi.fn(async () => runView({ id: "run-new" })) });
+    const onStarted = vi.fn();
+    const { rerender } = render(<NewRunDialog open onOpenChange={vi.fn()} api={api} agents={[]} storage={null} onStarted={onStarted} />);
+    expect(screen.getByText("Create or enable an agent to start a run")).toBeTruthy();
+
+    rerender(
+      <NewRunDialog
+        open
+        onOpenChange={vi.fn()}
+        api={api}
+        agents={[agentJson({ id: "agent-1", name: "Desk agent" }), agentJson({ id: "agent-2", name: "Web agent" })]}
+        storage={null}
+        onStarted={onStarted}
+      />,
+    );
+    expect((screen.getByLabelText("Agent") as HTMLSelectElement).value).toBe("agent-1");
+    await userEvent.type(screen.getByLabelText("Prompt"), "go");
+    expect((screen.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Start run" }));
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("run-new"));
+    expect(api.createRun).toHaveBeenCalledWith({ agent_id: "agent-1", prompt: "go" });
+  });
+
+  it("offers the prompt last used with the agent the form shows, once the list arrives", async () => {
+    const storage = memoryStorage({ [PROMPTS_STORAGE_KEY]: JSON.stringify({ "agent-1": "Last time" }) });
+    const { rerender } = render(<NewRunDialog open onOpenChange={vi.fn()} api={fakeRunApi()} agents={[]} storage={storage} onStarted={vi.fn()} />);
+    rerender(
+      <NewRunDialog open onOpenChange={vi.fn()} api={fakeRunApi()} agents={[agent]} storage={storage} onStarted={vi.fn()} />,
+    );
+    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe("Last time");
+  });
+
   it("says why it cannot start when there is no enabled agent", () => {
     render(<NewRunDialog open onOpenChange={vi.fn()} api={fakeRunApi()} agents={[]} storage={null} onStarted={vi.fn()} />);
     expect(screen.getByText("Create or enable an agent to start a run")).toBeTruthy();
