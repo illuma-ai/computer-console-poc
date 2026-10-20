@@ -2,6 +2,12 @@
 
 A test console for autonomous agents that work on computers, plus the embeddable computer viewer.
 
+**Status: starter and reference, not a product.** This console exists to exercise the run API end
+to end. The product UI is built elsewhere and takes what it needs from here: the computer viewer
+package as is, and the console's screens (run timeline, request cards, take-over, replay, agent
+settings) as working references for the API's shapes and flows. Keep changes here to what testing
+needs; do not grow it into the product.
+
 | Path | What it is |
 |---|---|
 | `apps/sample` | The console: agent definitions (templates, tool catalog), runs, the live run view with timeline, request cards and the computer screen |
