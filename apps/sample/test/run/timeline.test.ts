@@ -170,6 +170,27 @@ describe("requests", () => {
     expect(state.openRequests).toEqual([]);
     expect(notices(state).at(-1)?.text).toBe("Take-over released (done)");
   });
+
+  it.each(["run.completed", "run.failed", "run.cancelled", "run.blocked"])(
+    "closes an open take-over when the run ends with %s",
+    (endType) => {
+      const takeover = { ...request, id: "req-3", kind: "takeover", title: "Enter the code", options: [] };
+      const data = endType === "run.failed" ? { error: "boom" } : endType === "run.blocked" ? { reason: "egress" } : {};
+      const state = fold([event(1, "run.waiting_input", { request: takeover }), event(2, endType, data)]);
+      expect(state.openRequests).toEqual([]);
+    },
+  );
+
+  it("closes the open requests when the snapshot shows the run has ended", () => {
+    const waiting = fold([event(1, "run.waiting_input", { request })]);
+    const ended = withSnapshot({ ...waiting, lastSeq: 0 }, runView({ status: "blocked" }));
+    expect(ended.openRequests).toEqual([]);
+  });
+
+  it("keeps the open requests of a live run", () => {
+    const state = fold([event(1, "run.waiting_input", { request }), progress(2, "plan", { entries: [] })]);
+    expect(state.openRequests.map((item) => item.id)).toEqual(["req-1"]);
+  });
 });
 
 describe("unknown events", () => {
