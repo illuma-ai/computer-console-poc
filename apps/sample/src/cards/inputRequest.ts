@@ -1,7 +1,7 @@
 /**
  * The typed form of a request for values from a person (docs/plans/request-input-contract.md). The run API
- * does not send this kind yet, so nothing mounts it; this module holds the contract's limits and the
- * answer's shape, so the card can be wired in when the service sends the kind.
+ * sends it as an `input` request whose `meta` is `{ message, fields }`. This module reads that payload, holds
+ * the contract's limits and builds the answer's shape.
  *
  * Secret fields are never echoed or stored by the sample: the answer goes out and the field is cleared.
  */
@@ -34,11 +34,71 @@ export const INPUT_LIMITS = {
 /** A value a person typed for one field. */
 export type InputValue = string | number | boolean;
 
-/** The answer the harness expects: accept with the content, decline or cancel. */
+/** The answer the harness expects: accept with the values, decline or cancel. */
 export type InputAnswer =
-  | { readonly action: "accept"; readonly content: Readonly<Record<string, InputValue>> }
+  | { readonly action: "accept"; readonly values: Readonly<Record<string, InputValue>> }
   | { readonly action: "decline" }
   | { readonly action: "cancel" };
+
+/** The payload of an `input` request: the agent's line of context, and the fields it asks for. */
+export interface InputRequestPayload {
+  readonly message: string | null;
+  readonly fields: readonly InputField[];
+}
+
+/**
+ * Reads the `{ message, fields }` payload of an `input` request. A field that is not in the contract's shape
+ * makes the whole list empty, so the card shows the limit it breaks (a request has 1 to 8 fields) and offers
+ * decline, rather than asking for fewer values than the agent named.
+ *
+ * @param meta The request's meta, as the service sent it.
+ */
+export function inputRequestOf(meta: Readonly<Record<string, unknown>>): InputRequestPayload {
+  const message = typeof meta["message"] === "string" ? meta["message"] : null;
+  const fields = fieldsOf(meta["fields"]);
+  return { message, fields: fields ?? [] };
+}
+
+/** The fields of the payload, or null when the value is not a list of fields in the contract's shape. */
+function fieldsOf(value: unknown): InputField[] | null {
+  if (!Array.isArray(value)) return null;
+  const fields: InputField[] = [];
+  for (const item of value) {
+    const field = fieldOf(item);
+    if (field === null) return null;
+    fields.push(field);
+  }
+  return fields;
+}
+
+function fieldOf(value: unknown): InputField | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const type = typeOf(raw["type"]);
+  if (typeof raw["name"] !== "string" || typeof raw["title"] !== "string" || type === null) return null;
+  if (raw["required"] !== undefined && typeof raw["required"] !== "boolean") return null;
+  if (raw["secret"] !== undefined && typeof raw["secret"] !== "boolean") return null;
+  if (raw["description"] !== undefined && typeof raw["description"] !== "string") return null;
+  return {
+    name: raw["name"],
+    title: raw["title"],
+    type,
+    required: raw["required"] === true,
+    ...(raw["secret"] === true ? { secret: true } : {}),
+    ...(typeof raw["description"] === "string" ? { description: raw["description"] } : {}),
+  };
+}
+
+function typeOf(value: unknown): InputFieldType | null {
+  if (value === "string" || value === "number" || value === "boolean") return value;
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const options = (value as Record<string, unknown>)["enum"];
+    if (Array.isArray(options) && options.every((option) => typeof option === "string")) {
+      return { enum: [...(options as string[])] };
+    }
+  }
+  return null;
+}
 
 /**
  * The limits the contract puts on a request. An empty list means the request is within them.
@@ -115,5 +175,5 @@ export function acceptAnswer(
     content[field.name] = text;
   }
   if (invalid.length > 0) return { ok: false, invalid };
-  return { ok: true, answer: { action: "accept", content } };
+  return { ok: true, answer: { action: "accept", values: content } };
 }

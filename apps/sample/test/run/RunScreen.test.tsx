@@ -3,7 +3,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { RunScreen } from "../../src/run/RunScreen";
 import { agentJson, event, fakeAgentsApi, fakeRunApi, openStream, progress, runView, streamOf } from "../support/fakes";
-import type { RunRequest } from "../../src/api/types";
+import type { RunProvenance, RunRequest } from "../../src/api/types";
 
 // The viewer is mocked at the module boundary: the test checks which session the pane asks for, not the viewer.
 vi.mock("@cm/computer-viewer/react", () => ({
@@ -173,3 +173,105 @@ describe("RunScreen agent", () => {
     expect(await screen.findByText("agent-aa226f26")).toBeTruthy();
   });
 });
+
+const inputRequest: RunRequest = {
+  id: "req-input",
+  kind: "input",
+  title: "Sign in to the site",
+  options: [],
+  meta: {
+    message: "The site needs your code.",
+    fields: [
+      { name: "account", title: "Account", type: "string", required: true },
+      { name: "code", title: "One-time code", type: "string", required: true, secret: true },
+    ],
+  },
+  expires_at: "2026-10-19T11:00:00Z",
+};
+
+describe("RunScreen input request", () => {
+  it("mounts the input card and sends the values the person types", async () => {
+    const api = fakeRunApi({ streamEvents: () => streamOf([event(1, "run.waiting_input", { request: inputRequest })]) });
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
+    await userEvent.type(await screen.findByLabelText("Account (required)"), "tester");
+    await userEvent.type(screen.getByLabelText("One-time code (required)"), "424242");
+    await userEvent.click(within(screen.getByRole("form", { name: "Values requested" })).getByRole("button", { name: "Send" }));
+    await waitFor(() =>
+      expect(api.answer).toHaveBeenCalledWith("run-1", "req-input", { action: "accept", values: { account: "tester", code: "424242" } }),
+    );
+  });
+
+  it("sends decline without values", async () => {
+    const api = fakeRunApi({ streamEvents: () => streamOf([event(1, "run.waiting_input", { request: inputRequest })]) });
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Decline" }));
+    await waitFor(() => expect(api.answer).toHaveBeenCalledWith("run-1", "req-input", { action: "decline" }));
+  });
+});
+
+describe("RunScreen Details tab", () => {
+  const provenance: RunProvenance = {
+    agent: { id: "agent-1", version: 3 },
+    harness: [{ name: "acp", version: "1.2", build: "abc123", computer: "c1", at: "2026-10-19T10:00:01Z" }],
+    model: "model-x",
+    computers: [
+      {
+        id: "c1",
+        runtime: "docker",
+        template: "agent-computer",
+        image_digest: "sha256:abcd",
+        started_at: "2026-10-19T10:00:00Z",
+        ended_at: "2026-10-19T10:30:00Z",
+        reason: "replaced",
+      },
+    ],
+    session_id: "sess-9",
+    service: { version: "2.4.0" },
+    artifacts: { session_export: "https://example.test/export/sess-9", checkpoints: [{}] },
+  };
+
+  it("shows the agent, harness, computers, session and service of a run that has provenance", async () => {
+    const api = fakeRunApi({
+      getRun: vi.fn(async () => runView({ id: "run-1", agent_id: "agent-1", provenance })),
+      streamEvents: () => openStream(),
+    });
+    const agents = fakeAgentsApi({ listAgents: vi.fn(async () => [agentJson({ name: "Browser agent" })]) });
+    render(<RunScreen runId="run-1" api={api} agents={agents} transport="auto" viewerBaseUrl="http://localhost" />);
+
+    await userEvent.click(await screen.findByRole("tab", { name: "Details" }));
+    const section = await screen.findByRole("region", { name: "Provenance" });
+    expect(section.textContent).toContain("Browser agent · version 3");
+    expect(within(section).getByRole("link", { name: "Agent definition" }).getAttribute("href")).toBe("#/agents");
+    expect(section.textContent).toContain("acp 1.2 (abc123)");
+    expect(section.textContent).toContain("model-x");
+    expect(section.textContent).toContain("sha256:abcd");
+    expect(section.textContent).toContain("replaced");
+    expect(section.textContent).toContain("sess-9");
+    expect(section.textContent).toContain("2.4.0");
+    expect(section.textContent).toContain("1");
+    expect(within(section).getByRole("link", { name: "Session export" }).getAttribute("href")).toBe(
+      "https://example.test/export/sess-9",
+    );
+  });
+
+  it("does not link a session export that is not a web address", async () => {
+    const api = fakeRunApi({
+      getRun: vi.fn(async () =>
+        runView({ id: "run-1", provenance: { session_id: "sess-9", artifacts: { session_export: "javascript:alert(1)" } } }),
+      ),
+      streamEvents: () => openStream(),
+    });
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Details" }));
+    const section = await screen.findByRole("region", { name: "Provenance" });
+    expect(within(section).queryByRole("link", { name: "Session export" })).toBeNull();
+  });
+
+  it("is not shown when the run has no provenance", async () => {
+    const api = fakeRunApi({ streamEvents: () => openStream() });
+    render(<RunScreen runId="run-1" api={api} agents={fakeAgentsApi()} transport="auto" viewerBaseUrl="http://localhost" />);
+    await screen.findByRole("tab", { name: "Timeline" });
+    expect(screen.queryByRole("tab", { name: "Details" })).toBeNull();
+  });
+});
+

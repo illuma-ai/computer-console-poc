@@ -44,12 +44,13 @@ export interface RequestOption {
 }
 
 /**
- * A pending request as the event stream and `GET /v1/runs/{id}` show it. `kind` is `takeover`, `question`
- * or `approval` today; a future `input` kind (docs/plans/request-input-contract.md) is not sent yet.
+ * A pending request as the event stream and `GET /v1/runs/{id}` show it. `kind` is `takeover`, `question`,
+ * `approval` or `input`. An `input` request carries `{ message, fields }` in `meta` (see `inputRequestOf` in
+ * cards/inputRequest.ts); the other kinds carry `{ reason }` or nothing.
  */
 export interface RunRequest {
   readonly id: string;
-  readonly kind: "question" | "approval" | "takeover" | (string & {});
+  readonly kind: "question" | "approval" | "takeover" | "input" | (string & {});
   readonly title: string;
   readonly options: readonly RequestOption[];
   /** For a take-over, `{ reason }` from the agent. A `url` is read when present; the service does not send one today. */
@@ -72,6 +73,56 @@ export interface RunView {
   readonly created_at?: string | null;
   readonly started_at?: string | null;
   readonly ended_at?: string | null;
+  /** How the run was made and what it ran on. Absent until the service sends it. */
+  readonly provenance?: RunProvenance | null;
+}
+
+/** The agent a run used: its definition and the version and snapshot the run ran. */
+export interface ProvenanceAgent {
+  readonly id: string;
+  readonly version: number;
+  readonly snapshot_sha256?: string | null;
+}
+
+/** One harness that ran the agent. */
+export interface HarnessProvenance {
+  readonly name: string;
+  readonly version: string;
+  readonly build?: string | null;
+  readonly computer: string;
+  readonly at: string;
+}
+
+/** One computer the run used. A replaced computer has an `ended_at` and a `reason`. */
+export interface ComputerProvenance {
+  readonly id: string;
+  readonly runtime: string;
+  readonly template: string;
+  readonly image_digest?: string | null;
+  readonly started_at: string;
+  readonly ended_at?: string | null;
+  readonly reason?: string | null;
+}
+
+/** The run service that handled the run. */
+export interface ServiceProvenance {
+  readonly version: string;
+  readonly build?: string | null;
+}
+
+/** The provenance of a run, as `GET /v1/runs/{id}` returns it. Every part is optional: the service may omit it. */
+export interface RunProvenance {
+  readonly agent?: ProvenanceAgent;
+  readonly harness?: readonly HarnessProvenance[];
+  readonly model?: string | null;
+  readonly computers?: readonly ComputerProvenance[];
+  readonly session_id?: string | null;
+  readonly service?: ServiceProvenance;
+  readonly artifacts?: {
+    /** A link to the session export, when the service has one. */
+    readonly session_export?: string | null;
+    readonly checkpoints?: readonly unknown[];
+  };
 }
 
 /** One page of `GET /v1/runs`. `next_cursor` is null on the last page. */
@@ -170,6 +221,10 @@ export interface AgentJson {
   readonly setup_commands: readonly (readonly string[])[];
   readonly ready_check: readonly string[] | null;
   readonly allowed_channels: readonly string[];
+  /** Seconds a computer may sit idle before it is paused. 0 means never. Absent until the service sends it. */
+  readonly idle_pause_s?: number;
+  /** Whether a person's answer resumes a paused computer. Absent until the service sends it. */
+  readonly resume_on_answer?: boolean;
   readonly enabled: boolean;
   readonly version: number;
   readonly created_at: string;
@@ -199,6 +254,10 @@ export interface AgentWrite {
   readonly setup_commands: readonly (readonly string[])[];
   readonly ready_check: readonly string[] | null;
   readonly allowed_channels: readonly string[];
+  /** Sent only when the person set it, or the saved definition had it. A service without the field accepts the write. */
+  readonly idle_pause_s?: number;
+  /** Sent only when set, as `idle_pause_s`. */
+  readonly resume_on_answer?: boolean;
 }
 
 /** One page of `GET /v1/agents`. `next_cursor` is null on the last page. */

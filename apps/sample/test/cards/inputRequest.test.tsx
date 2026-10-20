@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { acceptAnswer, inputProblems, INPUT_LIMITS } from "../../src/cards/inputRequest";
+import { acceptAnswer, inputProblems, inputRequestOf, INPUT_LIMITS } from "../../src/cards/inputRequest";
 import type { InputField } from "../../src/cards/inputRequest";
 import { InputCard } from "../../src/cards/InputCard";
 
@@ -66,7 +66,7 @@ describe("acceptAnswer", () => {
       ok: true,
       answer: {
         action: "accept",
-        content: { account: "tester", code: "424242", retries: 3, remember: true, region: "eu" },
+        values: { account: "tester", code: "424242", retries: 3, remember: true, region: "eu" },
       },
     });
   });
@@ -83,7 +83,7 @@ describe("acceptAnswer", () => {
 
   it("sends an unticked boolean as false", () => {
     const result = acceptAnswer([{ name: "flag", title: "Flag", type: "boolean", required: false }], {});
-    expect(result).toEqual({ ok: true, answer: { action: "accept", content: { flag: false } } });
+    expect(result).toEqual({ ok: true, answer: { action: "accept", values: { flag: false } } });
   });
 });
 
@@ -109,7 +109,7 @@ describe("InputCard", () => {
     );
     await userEvent.type(screen.getByLabelText("Code (required)"), "424242");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(onAnswer).toHaveBeenCalledWith({ action: "accept", content: { code: "424242" } });
+    expect(onAnswer).toHaveBeenCalledWith({ action: "accept", values: { code: "424242" } });
   });
 
   it("answers decline and cancel without any values", async () => {
@@ -120,9 +120,61 @@ describe("InputCard", () => {
     expect(onAnswer.mock.calls).toEqual([[{ action: "decline" }], [{ action: "cancel" }]]);
   });
 
-  it("shows the limits' problem instead of a form when the request breaks them", () => {
-    render(<InputCard title="Sign in" reason={null} fields={[]} onAnswer={vi.fn()} />);
+  it("shows the limits' problem instead of a form when the request breaks them, and still offers a way out", async () => {
+    const onAnswer = vi.fn();
+    render(<InputCard title="Sign in" reason={null} fields={[]} onAnswer={onAnswer} />);
     expect(screen.queryByRole("form", { name: "Values requested" })).toBeNull();
     expect(screen.getByRole("alert").textContent).toContain("1 to 8 fields");
+    await userEvent.click(screen.getByRole("button", { name: "Decline" }));
+    expect(onAnswer).toHaveBeenCalledWith({ action: "decline" });
+  });
+
+  it("clears a secret after the answer is sent, so it is not kept on screen", async () => {
+    render(
+      <InputCard
+        title="Sign in"
+        reason={null}
+        fields={[{ name: "code", title: "Code", type: "string", required: true, secret: true }]}
+        onAnswer={vi.fn()}
+      />,
+    );
+    const code = screen.getByLabelText("Code (required)") as HTMLInputElement;
+    await userEvent.type(code, "424242");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(code.value).toBe("");
+  });
+});
+
+describe("inputRequestOf", () => {
+  it("reads the message and the fields of an input request", () => {
+    const payload = inputRequestOf({
+      message: "Sign in to the site",
+      fields: [
+        { name: "account", title: "Account", type: "string", required: true },
+        { name: "code", title: "Code", type: "string", required: true, secret: true, description: "From the app" },
+        { name: "region", title: "Region", type: { enum: ["eu", "us"] }, required: false },
+      ],
+    });
+    expect(payload.message).toBe("Sign in to the site");
+    expect(payload.fields).toEqual([
+      { name: "account", title: "Account", type: "string", required: true },
+      { name: "code", title: "Code", type: "string", required: true, secret: true, description: "From the app" },
+      { name: "region", title: "Region", type: { enum: ["eu", "us"] }, required: false },
+    ]);
+  });
+
+  it("gives no fields when the payload is absent, so the card names the limit", () => {
+    expect(inputRequestOf({})).toEqual({ message: null, fields: [] });
+    expect(inputRequestOf({ fields: "account" })).toEqual({ message: null, fields: [] });
+  });
+
+  it("gives no fields when one field is not in the contract's shape, rather than asking for fewer", () => {
+    const payload = inputRequestOf({
+      fields: [
+        { name: "account", title: "Account", type: "string", required: true },
+        { name: "retries", title: "Retries", type: "integer", required: true },
+      ],
+    });
+    expect(payload.fields).toEqual([]);
   });
 });

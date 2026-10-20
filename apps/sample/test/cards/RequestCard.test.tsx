@@ -5,6 +5,21 @@ import { cardLabel, RequestCard } from "../../src/cards/RequestCard";
 import type { RequestCardProps } from "../../src/cards/RequestCard";
 import type { RunRequest } from "../../src/api/types";
 
+const input: RunRequest = {
+  id: "req-input",
+  kind: "input",
+  title: "Sign in to the site",
+  options: [],
+  meta: {
+    message: "The site needs your code.",
+    fields: [
+      { name: "account", title: "Account", type: "string", required: true },
+      { name: "code", title: "One-time code", type: "string", required: true, secret: true },
+    ],
+  },
+  expires_at: "2026-10-19T11:00:00Z",
+};
+
 afterEach(() => cleanup());
 
 const takeover: RunRequest = {
@@ -135,3 +150,25 @@ describe("question card", () => {
     expect(onAnswer).toHaveBeenCalledWith({ option_id: "opt-default" });
   });
 });
+
+describe("input card", () => {
+  it("mounts the typed form for an input request, with its message and fields", () => {
+    render(<RequestCard {...props({ request: input })} />);
+    expect(screen.getByLabelText("Input request")).toBeTruthy();
+    expect(screen.getByText("The site needs your code.")).toBeTruthy();
+    expect(screen.getByLabelText("One-time code (required)").getAttribute("type")).toBe("password");
+  });
+
+  it("sends the accept answer with its values, and the decline without any", async () => {
+    const onAnswer = vi.fn();
+    render(<RequestCard {...props({ request: input, onAnswer })} />);
+    await userEvent.type(screen.getByLabelText("Account (required)"), "tester");
+    await userEvent.type(screen.getByLabelText("One-time code (required)"), "424242");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(onAnswer).toHaveBeenLastCalledWith({ action: "accept", values: { account: "tester", code: "424242" } });
+
+    await userEvent.click(screen.getByRole("button", { name: "Decline" }));
+    expect(onAnswer).toHaveBeenLastCalledWith({ action: "decline" });
+  });
+});
+

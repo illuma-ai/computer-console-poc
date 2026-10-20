@@ -9,6 +9,7 @@ import type {
   ViewJson,
 } from "./types";
 import { decodeText, parseSse } from "./sse";
+import type { InputAnswer } from "../cards/inputRequest";
 
 /**
  * The browser's client for the run API. It calls only the same-origin mount (`/api/runs`); the dev
@@ -50,8 +51,11 @@ export interface CreateRunInput {
   readonly prompt: string;
 }
 
-/** The answer to a request: one of its options, or a text (a question accepts text). */
-export type AnswerBody = { readonly option_id: string } | { readonly text: string };
+/**
+ * The answer to a request: one of its options, a text (a question accepts text), or for an `input` request the
+ * accept (with its values), decline or cancel.
+ */
+export type AnswerBody = { readonly option_id: string } | { readonly text: string } | InputAnswer;
 
 /** The filters of `GET /v1/runs`. An empty status means every status. */
 export interface RunsQuery {

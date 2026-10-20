@@ -216,3 +216,109 @@ describe("withLinks", () => {
     ]);
   });
 });
+
+describe("input answers and idle notices", () => {
+  const inputRequest = {
+    id: "req-input",
+    kind: "input",
+    title: "Sign in",
+    options: [],
+    meta: {
+      message: "The site needs your code.",
+      fields: [
+        { name: "account", title: "Account", type: "string", required: true },
+        { name: "code", title: "One-time code", type: "string", required: true, secret: true },
+      ],
+    },
+    expires_at: "2026-10-19T11:00:00Z",
+  };
+
+  it("names the fields of an accepted input request, and whether each was provided", () => {
+    const waiting = fold([event(1, "run.waiting_input", { request: inputRequest })]);
+    expect(waiting.openRequests.map((item) => item.id)).toEqual(["req-input"]);
+    const answered = fold(
+      [
+        event(2, "request.answered", {
+          request_id: "req-input",
+          action: "accept",
+          fields: [
+            { name: "account", provided: true },
+            { name: "code", provided: true },
+          ],
+        }),
+      ],
+      waiting,
+    );
+    expect(answered.openRequests).toEqual([]);
+    expect(answered.status).toBe("running");
+    expect(notices(answered).at(-1)?.text).toBe("Answered: account (provided), code (provided)");
+  });
+
+  it("marks an optional field that was left empty as not provided", () => {
+    const waiting = fold([event(1, "run.waiting_input", { request: inputRequest })]);
+    const answered = fold(
+      [
+        event(2, "request.answered", {
+          request_id: "req-input",
+          action: "accept",
+          fields: [
+            { name: "account", provided: true },
+            { name: "code", provided: false },
+          ],
+        }),
+      ],
+      waiting,
+    );
+    expect(notices(answered).at(-1)?.text).toBe("Answered: account (provided), code (not provided)");
+  });
+
+  it("never reads a value, even if one is sent beside a field's name", () => {
+    const waiting = fold([event(1, "run.waiting_input", { request: inputRequest })]);
+    const answered = fold(
+      [
+        event(2, "request.answered", {
+          request_id: "req-input",
+          action: "accept",
+          fields: [{ name: "code", provided: true, value: "424242" }],
+          answer: { action: "accept", values: { code: "424242" } },
+        }),
+      ],
+      waiting,
+    );
+    expect(notices(answered).at(-1)?.text).toBe("Answered: code (provided)");
+    expect(JSON.stringify(answered)).not.toContain("424242");
+  });
+
+  it("shows a declined or cancelled input request as such", () => {
+    const waiting = fold([event(1, "run.waiting_input", { request: inputRequest })]);
+    const declined = fold([event(2, "request.answered", { request_id: "req-input", action: "decline" })], waiting);
+    expect(notices(declined).at(-1)?.text).toBe("Declined");
+    const cancelled = fold([event(3, "request.answered", { request_id: "req-input", action: "cancel" })], waiting);
+    expect(notices(cancelled).at(-1)?.text).toBe("Cancelled");
+  });
+
+  it("reads an answer whose request is not open as answered, as before", () => {
+    const state = fold([event(1, "request.answered", { request_id: "req-1", answer: { option_id: "x" } })]);
+    expect(notices(state).at(-1)?.text).toBe("Answered: answered");
+  });
+
+  it("shows the harness that started, with its name and version", () => {
+    const state = fold([event(1, "harness.started", { name: "acp", version: "1.2" })]);
+    expect(notices(state)[0]).toMatchObject({ type: "harness.started", text: "Harness started", detail: "acp 1.2" });
+  });
+
+  it("gives the pause, the park and the resume of a computer their own rows", () => {
+    const state = fold([
+      event(1, "computer.paused", { reason: "idle" }),
+      event(2, "computer.parked_deleted", { reason: "idle" }),
+      event(3, "computer.resumed", {}),
+    ]);
+    expect(notices(state).map((notice) => [notice.type, notice.text])).toEqual([
+      ["computer.paused", "Computer paused"],
+      ["computer.parked_deleted", "Computer parked and deleted"],
+      ["computer.resumed", "Computer resumed"],
+    ]);
+    expect(notices(state)[0]?.detail).toBe("idle");
+  });
+});
+

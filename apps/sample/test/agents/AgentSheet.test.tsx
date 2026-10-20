@@ -50,6 +50,18 @@ describe("AgentSheet: create", () => {
     });
   });
 
+  it("leaves the idle settings out of the create until the person sets them", async () => {
+    const api = fakeAgentsApi();
+    renderCreate(api);
+    expect(screen.getByText("Service default")).toBeTruthy();
+    await userEvent.type(screen.getByLabelText("Name"), "Desk");
+    await userEvent.type(screen.getByLabelText("Template"), "cm-desktop-agent");
+    await userEvent.click(screen.getByRole("button", { name: "Create agent" }));
+    await waitFor(() => expect(api.createAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.createAgent)).not.toHaveProperty("idle_pause_s");
+    expect(bodyOfCall(api.createAgent)).not.toHaveProperty("resume_on_answer");
+  });
+
   it("sends the listing mode the person picks for a server", async () => {
     const api = fakeAgentsApi();
     renderCreate(api);
@@ -127,6 +139,38 @@ describe("AgentSheet: edit", () => {
     expect(bodyOfCall(api.updateAgent, 1)["mcp_servers"]).toEqual([
       expect.objectContaining({ name: "api", tools: "full", env: [{ name: "TOKEN", value: "s3cret" }] }),
     ]);
+  });
+
+  it("shows the saved idle settings and sends the ones the person changes", async () => {
+    const api = fakeAgentsApi();
+    const idle = agentJson({ idle_pause_s: 300, resume_on_answer: false });
+    render(<AgentSheet mode="edit" agent={idle} initial={formOf(idle)} api={api} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect((screen.getByLabelText("Pause after idle (s)") as HTMLInputElement).value).toBe("300");
+    await userEvent.clear(screen.getByLabelText("Pause after idle (s)"));
+    await userEvent.type(screen.getByLabelText("Pause after idle (s)"), "-5");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(screen.getByText(/0 for never/)).toBeTruthy();
+    expect(api.updateAgent).not.toHaveBeenCalled();
+
+    await userEvent.clear(screen.getByLabelText("Pause after idle (s)"));
+    await userEvent.type(screen.getByLabelText("Pause after idle (s)"), "0");
+    await userEvent.click(screen.getByRole("switch", { name: "Resume on answer" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api.updateAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.updateAgent, 1)).toMatchObject({ idle_pause_s: 0, resume_on_answer: true });
+  });
+
+  it("saves an agent that had no idle settings without them, until the person sets one", async () => {
+    const api = fakeAgentsApi();
+    const plain = agentJson();
+    render(<AgentSheet mode="edit" agent={plain} initial={formOf(plain)} api={api} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect((screen.getByLabelText("Pause after idle (s)") as HTMLInputElement).value).toBe("");
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Renamed");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(api.updateAgent).toHaveBeenCalled());
+    expect(bodyOfCall(api.updateAgent, 1)).not.toHaveProperty("idle_pause_s");
+    expect(bodyOfCall(api.updateAgent, 1)).not.toHaveProperty("resume_on_answer");
   });
 
   it("disables an enabled agent and reports the agent it got back", async () => {

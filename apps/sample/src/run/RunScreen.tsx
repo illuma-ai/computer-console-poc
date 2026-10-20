@@ -17,6 +17,7 @@ import { useRunStream } from "./useRunStream";
 import { ComputerPane } from "./ComputerPane";
 import { Timeline } from "./TimelineView";
 import { ArtifactsList } from "./ArtifactsList";
+import { ProvenanceView } from "./ProvenanceView";
 import { withLinks } from "./timeline";
 import { agentNameIndex } from "../runs/runList";
 
@@ -37,8 +38,8 @@ interface HeldLease {
   readonly view: ViewJson;
 }
 
-/** The two views of the run's column. */
-type Tab = "timeline" | "artifacts";
+/** The views of the run's column. Details is shown only when the run has provenance. */
+type Tab = "timeline" | "artifacts" | "details";
 
 /**
  * One run: the open requests pinned at the top, the timeline (or the artifacts), the steer and cancel actions,
@@ -58,6 +59,7 @@ export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunS
   const ended = TERMINAL_RUN_STATUSES.some((known) => known === status);
   const canSteer = status !== "unknown" && !ended;
   const artifactCount = state.artifacts.length;
+  const provenance = snapshot?.provenance ?? null;
 
   // The artifact links are read once the run has produced files, and again once it has ended.
   useEffect(() => {
@@ -138,6 +140,7 @@ export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunS
 
   const artifacts = withLinks(state.artifacts, links);
   const requests = state.openRequests;
+  const agentName = snapshot ? agentNameIndex(agentList).get(snapshot.agent_id) ?? null : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -196,6 +199,7 @@ export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunS
             <TabsList>
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="artifacts">Artifacts{artifactCount > 0 ? ` (${artifactCount})` : ""}</TabsTrigger>
+              {provenance ? <TabsTrigger value="details">Details</TabsTrigger> : null}
             </TabsList>
             <TabsContent value="timeline" className="flex flex-col gap-4">
               <Timeline entries={state.timeline} result={state.result} />
@@ -217,6 +221,11 @@ export function RunScreen({ runId, api, agents, transport, viewerBaseUrl }: RunS
             <TabsContent value="artifacts">
               <ArtifactsList artifacts={artifacts} ended={ended} />
             </TabsContent>
+            {provenance ? (
+              <TabsContent value="details">
+                <ProvenanceView provenance={provenance} agentName={agentName} />
+              </TabsContent>
+            ) : null}
           </Tabs>
         </div>
 
