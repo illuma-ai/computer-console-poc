@@ -239,6 +239,16 @@ function foldEvent(state: RunState, event: RunEvent): RunState {
       const reason = textOf(data["reason"], "The run was blocked");
       return notice({ ...base, status: "blocked", error: reason, endedAt: event.at }, event, "blocked", reason, null);
     }
+    case "recording.started":
+      return notice(base, event, "info", "Recording started", null);
+    case "recording.paused":
+      return notice(base, event, "info", "Recording paused", textOrNull(data["reason"]));
+    case "recording.resumed":
+      return notice(base, event, "info", "Recording resumed", null);
+    case "recording.stopped":
+      return notice(base, event, "info", "Recording stopped", textOrNull(data["reason"]));
+    case "recording.unavailable":
+      return notice(base, event, "warning", "Recording unavailable", textOrNull(data["code"]));
     case "access.denied":
       return notice(base, event, "warning", `Access refused: ${textOf(data["action"], "action")}`, null);
     default:

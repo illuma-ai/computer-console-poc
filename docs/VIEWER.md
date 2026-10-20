@@ -129,13 +129,19 @@ The fetcher is the host's. The package adds no credential, and it does not call 
 the manifest URL is the host's, and each link the manifest gives is fetched through the same
 fetcher. Pass a stable function, because a new one reloads the recording.
 
-**The manifest** (`GET /v1/runs/{id}/recording`, read first) has `state`, `started_at`,
-`duration_ms`, `width`, `height`, `segments` (`[{ url, from_ms, to_ms, size }]`), `pauses`
-(`[{ from_ms, to_ms, reason }]`) and an optional `index_url`. A `404` means the run has no recording.
+**The manifest** (`GET /v1/runs/{id}/recording`, read first) has `state`, `duration_ms` (the span's end:
+the clock starts at zero, the run's first start), `segments` (`[{ url, from_ms, to_ms, size }]`, in time
+order) and `pauses` (`[{ from_ms, to_ms, reason }]`, on the recording's clock). `width` and `height` are
+read when present. A `404` means the run has no recording.
 
-**The event index** (`index_url`, read second) is an array of `{ seq, type, offset_ms }`, one per
-run event. `seq` seeks to the last indexed event at or before it. Without an index, or when it
-cannot be read, playback works and seeking by event goes to the start.
+A segment's `url` is a link minted for that request. It is `null` when the store cannot sign links; then the
+recording cannot be played, and the replay says so.
+
+**The event index** (`GET /v1/runs/{id}/recording/index`, read second, at the manifest's URL with `/index`) is
+`{ events: [{ seq, type, offset_ms }], truncated }`: one line per run event, with no event data. `seq` seeks to
+the last indexed event at or before it. When the service cut the index (`truncated: true`), the replay says
+so, and an event after its last line seeks to that line. Without an index, or when it cannot be read, playback
+works and seeking by event goes to the start.
 
 **Segments** are fetched when the playhead reaches them, with the next one fetched ahead. Only the
 segments near the playhead stay in memory.
@@ -158,8 +164,8 @@ A record cut short at the end of a segment is dropped; the complete frames befor
 frame is shown until the next one starts, and the picture at a time is the last frame before it,
 which may sit in an earlier segment. The screen is one image, swapped as the playhead moves.
 
-- **Pauses.** A span with a pause (a person took control, sensitive input) shows its reason in
-  place of a picture, and the spans are listed below the scrubber. The screen is not recorded
+- **Pauses.** A span with a pause (a person took control: reason `takeover`) shows its reason in
+  place of a picture, and the spans are listed below the scrubber. Any other reason reads as a plain pause. The screen is not recorded
   during a pause, so the picture from before it is not carried over: after a pause, no picture
   shows until the screen next changes.
 - **Speed** is 1x, 2x or 4x.
@@ -210,6 +216,9 @@ Things still open or deliberately left out.
   needs CORS for the page's origin, or the run service must serve the segments itself.
 - **Frame at resume.** After a pause the picture is unknown until the screen next changes. The
   recorder should write a frame when a pause ends, so the picture shows straight away.
+- **Span and size names.** The service documents the manifest's content, not its field names: `duration_ms`,
+  `width`, `height` and `size`, and the index's `events` and `truncated`, are the names this viewer reads. Confirm
+  them against the run service before relying on them.
 - **Not in the replay.** Skipping static spans, audio, and speeds beyond 4x.
 
 ## Dependencies

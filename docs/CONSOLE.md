@@ -15,11 +15,13 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
 - **Agents** (`#/agents`). The agent definitions, from `GET /v1/agents`. "New agent" starts blank;
   "New from template" starts from a template in the catalog. A row opens its agent in a sheet. The sheet holds
   the name, description, instructions, model, runtime, template, egress, timeout, max wait, take-over allowed,
-  allowed channels, setup commands, ready check, a Recording section (record the screen, retention in days,
-  recording required, pause on typed text) and the tools. Saving validates first and shows each problem
+  allowed channels, setup commands, ready check, a Recording section (record the screen, frames a second, retention
+  in days, recording required, pause on typed text) and the tools. Saving validates first and shows each problem
   under its field. "Disable agent" turns an enabled agent off.
-  A recording setting is sent only when the person sets it or the saved definition has it, and the form shows
-  its default (off, 30 days) until then, so a service that predates recording still accepts the write.
+  The recording settings are one object, `recording: { mode, required, fps, retention_days, pause_on_text }`. A write
+  replaces it whole, so every change sends all five keys. It is sent only when the person changes a setting or the
+  saved definition has one; until then the form shows the defaults (off, 2 frames a second, 30 days) and the write
+  leaves the key out, so a service that predates recording still accepts it.
 - **Runs** (`#/runs`). The runs, newest first: status, run id, agent, runtime, started and duration. A status
   filter asks the service for that status. The first page refreshes every five seconds (paused while the page is
   hidden); "Load more" follows the service's cursor. "New run" opens a dialog: pick an agent (the first enabled
@@ -36,8 +38,8 @@ The left navigation has three screens. Each is addressed by its hash, so a reloa
   signed download links, and a Replay tab. Steer sends a message to a live run. Cancel run ends it.
   Each timeline row has a Replay action (it appears on hover or focus) that opens the Replay tab at that row's
   event. The Replay tab plays the run's recording: pick Play, or seek with the scrubber, the keyboard or a row.
-  Pauses in the recording (a take-over, sensitive input) show as gaps with their reason. A run with no recording
-  says so. The viewer's Replay component is described in `docs/VIEWER.md`.
+  Pauses in the recording (a take-over) show as gaps with their reason. A run with no recording says so. The
+  timeline shows the recording's events (started, paused, resumed, stopped, unavailable) as rows. The viewer's Replay component is described in `docs/VIEWER.md`.
 - **Settings** (`#/settings`). The colour theme (system, light or dark; kept in this browser) and the endpoints
   the page uses (run API, agent registry, viewer origin and screen transport). The endpoints come from the build
   and the dev server, so they are shown, not edited.
